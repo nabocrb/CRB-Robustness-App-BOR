@@ -4,7 +4,7 @@ output:
   flexdashboard::flex_dashboard:
     navbar:
         - {icon: "fa-user-cog", href: "#section-settings", align: right}
-    source_code: "https://github.com/nabocrb/CRB-robustness-app"
+    source_code: "https://github.com/nabocrb/CRB-Robustness-App-BOR"
     
 runtime: shiny
 ---
@@ -68,41 +68,33 @@ metrics_4app[['DV']]=DV
 
 global_filter=reactiveValues(r=1:463) # Initiate with all policies. changes whenever a user hits save button.
 in_global_filter=reactiveValues(y=rep(1,nrow(wide_data)))
-atLeast13=data.frame(matrix(nrow=nrow(wide_data), ncol=13)) # need this data frame to add to the tradeoff dfs so par_coords data has at least 13 columns
 
 ###### baseline performance (in MOEA optimization)
-prep_baseline=data.frame(metrics_4app$baseline, add_to_tradeoff, atLeast13)
+prep_baseline=data.frame(metrics_4app$baseline, add_to_tradeoff)
 baseline_all=reactive({prep_baseline})
 baseline=reactive({dplyr::filter(prep_baseline, policy %in% global_filter$r)})
 
 ###### LBSV < 600 KAF, Mead 1000 < 10% and Powell 3490 < 5%#####
-prep_satisficing=data.frame(metrics_4app$satisficing, add_to_tradeoff, atLeast13)
-# satisficing=reactive({dplyr::filter(prep_satisficing, policy %in% global_filter$r)})
+prep_satisficing=data.frame(metrics_4app$satisficing, add_to_tradeoff)
 
 ##### % deviation
-prep_percent_deviation=data.frame(metrics_4app$percent.deviation, add_to_tradeoff, atLeast13)
-# percent_deviation_tradeoffs=reactive({dplyr::filter(prep_percent_deviation, policy %in% global_filter$r)})
+prep_percent_deviation=data.frame(metrics_4app$percent.deviation, add_to_tradeoff)
 
 #### tradeoff between mean of objectives (Laplace PIR)
-prep_Laplace=data.frame(metrics_4app$Laplaces.PIR, add_to_tradeoff, atLeast13)
-# LaplaceTradeOff=reactive({dplyr::filter(prep_LaplaceTradeOff, policy %in% global_filter$r)})
+prep_Laplace=data.frame(metrics_4app$Laplaces.PIR, add_to_tradeoff)
 
 #### tradeoff between mean-variance
 
-prep_mean_var=data.frame(metrics_4app$mean.variance, add_to_tradeoff, atLeast13)
-# mean_var_tradeoff=reactive({dplyr::filter(prep_mean_var_tradeoff, policy %in% global_filter$r)})
+prep_mean_var=data.frame(metrics_4app$mean.variance, add_to_tradeoff)
 
 ### regret from best tradeoffs
-prep_regret2=data.frame(metrics_4app$regret.from.best, add_to_tradeoff, atLeast13)
-# regret2_tradeoff=reactive({dplyr::filter(prep_regret2, policy %in% global_filter$r)})
+prep_regret2=data.frame(metrics_4app$regret.from.best, add_to_tradeoff)
 
 #### tradeoffs between Hurwicz OP
-prep_Hurwicz=data.frame(metrics_4app$Hurwicz.OP, add_to_tradeoff, atLeast13)
-# Hurwicz_tradeoff=reactive({dplyr::filter(prep_Hurwicz_tradeoff, policy %in% global_filter$r)})
+prep_Hurwicz=data.frame(metrics_4app$Hurwicz.OP, add_to_tradeoff)
 
 #### maximin (worst case SOW) tradeoffs
-prep_maximin=data.frame(metrics_4app$maximin, add_to_tradeoff, atLeast13)
-# maximin_tradeoff=reactive({dplyr::filter(prep_maximin_tradeoff, policy %in% global_filter$r)})
+prep_maximin=data.frame(metrics_4app$maximin, add_to_tradeoff)
 
 ###### prepare reactiveValue global filters log object ######
 
@@ -119,65 +111,52 @@ filterLog=reactiveValues(global=df.initialize, local=df.initialize)
 #################### functions #################################
 ################################################################
 
-############## parallel coordinates plotting function
+par_coords=function(data, max_cols=NULL, n_var, color_var, title='User selected metrics', labels=colnames(data), source=NULL, policy_ID=NULL, color_scale=input$ColorScale, reverse_scale=input$ReverseTF, colorbarTitle=""){
 
-par_coords=function(data, n_var, max_cols=NULL, color_var, title='User selected metrics', labels=colnames(data), source=NULL, policy_ID=NULL, color_scale=input$ColorScale, reverse_scale=input$ReverseTF){
-  
-  legendx=1.04
-  legendy=.5
-  legendtitle <-  list(yref='paper',xref="paper",y=legendy,x=legendx, text='selected variable',showarrow=F, textangle=90, size=12, colour='darkgrey') # size isn't doing anything
-  
-  T_F=rep(FALSE,13)
+  T_F=rep(FALSE,ncol(data))
   
   if (is.null(max_cols)){
-   
+    
   } else {
     
     T_F[max_cols]=TRUE
     
   }
   
-  # Viridis, Rainbow, Picnic
   mypal=matrix(nrow=4, ncol=2)
   mypal[,1]=c(0,.25,.75,1)
   mypal[,2]=c('rgb(255,0,0)','rgb(255,102,255)','rgb(153,255,255)','rgb(0,0,255)')
   
-  if (color_scale=='blue-red'){color_scale=mypal}
   
-  p <-data %>% plot_ly(type = 'parcoords', tickfont=list(size=13),
-                                               line = list(color =data[[color_var]], #colorbar=list(title='test'),
-                                                           colorscale = color_scale, reversescale=reverse_scale, showscale=TRUE),
-                                               dimensions = list(
-                                                 list(range = sort(range(data[[1]]), decreasing=T_F[1]),label = labels[1], values = data[[1]], constraintrange=policy_ID), 
-                                                 list(range = sort(range(data[[2]]), decreasing=T_F[2]),label = labels[2], values = data[[2]]),
-                                                 list(range = sort(range(data[[3]]), decreasing=T_F[3]),label = labels[3], values = data[[3]]),
-                                                 list(range = sort(range(data[[4]]), decreasing=T_F[4]),label = labels[4], values = data[[4]]),
-                                                 list(range = sort(range(data[[5]]), decreasing=T_F[5]),label = labels[5], values = data[[5]]),
-                                                 list(range = sort(range(data[[6]]), decreasing=T_F[6]),label = labels[6], values = data[[6]]),
-                                                 list(range = sort(range(data[[7]]), decreasing=T_F[7]),label = labels[7], values = data[[7]]),
-                                                 list(range = sort(range(data[[8]]), decreasing=T_F[8]),label = labels[8], values = data[[8]]),
-                                                 list(range = sort(range(data[[9]]), decreasing=T_F[9]),label = labels[9], values = data[[9]]),
-                                                 list(range = sort(range(data[[10]]), decreasing=T_F[10]),label = labels[10], values = data[[10]]),
-                                                 list(range = sort(range(data[[11]]), decreasing=T_F[11]),label = labels[11], values = data[[11]]),
-                                                 list(range = sort(range(data[[12]]), decreasing=T_F[12]),label = labels[12], values = data[[12]]),
-                                                 list(range = sort(range(data[[13]]), decreasing=T_F[13]),label = labels[13], values = data[[13]])
-
-                                               ), source=source
-                                               
-  ) # end plot_ly()
+  data=data[,1:n_var]
   
-  # add title and legend annotation
-  p=p %>% layout(margin=list(l=40,r=10,b=20,t=0, pad=0), title=title, annotations=legendtitle)
-  
-  # remove excess axis from the plotly object
-  p=plotly_build(p) # building creates the list that you can edit to remove excess axis
-  
-  for (i in 13:(n_var+1)){
+  dimensions=list()
+  for (i in 1: ncol(data)){
+    dimensions[[i]]=list()
     
-    p[["x"]][["data"]][[1]][["dimensions"]][[i]]=NULL
+    dimensions[[i]][['range']]=sort(range(data[[i]]), decreasing=T_F[i])
+    dimensions[[i]][['label']]=labels[i]
+    dimensions[[i]][['values']]=data[[i]]
+    
+    if (colnames(data)[i]=='policy'){
+      dimensions[[i]][['constraintrange']]=policy_ID
+    }
     
     
   }
+  
+  
+  if (color_scale=='blue-red'){color_scale=mypal}
+  
+  p <-data %>% plot_ly(type = 'parcoords', tickfont=list(size=13),
+                       line = list(color =data[[color_var]], colorbar=list(title=list(text=colorbarTitle, side='right'), thickness=20, x=1.00, xpad=10),
+                                   colorscale = color_scale, reversescale=reverse_scale, showscale=TRUE),
+                       dimensions = dimensions, source=source
+                       
+  ) # end plot_ly()
+  
+  # add title and legend annotation
+  p=p %>% layout(margin=list(l=40,r=10,b=20,t=0, pad=0), title=title)
   
   return(p)
   
@@ -192,7 +171,7 @@ addSmallLegend <- function(myPlot=bar_plot, pointSize = 0.25, textSize = 8, spac
     myPlot +
         guides(shape = guide_legend(override.aes = list(size = pointSize)),
                color = guide_legend(override.aes = list(size = pointSize))) +
-        theme(legend.title = element_text(size = textSize), 
+        theme(legend.title = element_blank(), #element_text(size = textSize)
               legend.text  = element_text(size = textSize),
               legend.key.size = unit(spaceLegend, "lines"))
 }
@@ -235,7 +214,11 @@ DV_plot=function(long.data=long_data, wide.data=wide_data, metric= robustness_me
   # ggtitle(paste(metric_label, 'rank for selected policies', sep=' '))+
   
   int_plot=ggplotly(p=bar_plot, tooltip = c('policy', 'rank','elevation', 'volume')) # convert ggplot to interactive plotly html
-  
+  # add legend title in correct location
+  int_plot=int_plot %>%   layout(legend = list(
+      orientation = "v", title=list(text=" Tier ")
+    )
+  )
   int_plot_2y=int_plot %>%
     add_lines(data=filter.metric, x=~sort(filter.metric$rank), y=~sort(filter.metric[[metric_label]], decreasing = decreasing), yaxis='y2',
               inherit=FALSE, showlegend=FALSE, line=list(color='purple', width=2, dash='dash')) %>%
@@ -507,8 +490,9 @@ Column {.tabset .tabset-fade data-width=600}
 
 ### background information
 
+
 ```{r, background image}
-include_graphics('https://i.imgur.com/EpuoFyr.png')
+include_graphics('https://imgur.com/EpuoFyr.png')
 
 ```
 
@@ -710,8 +694,8 @@ Row {data-height=325}
 ```{r, baseline par_coords}
 
 # create 13 blank labels since par_coords function takes 13 variables
-labelsBaseline=rep('fill',13)
-labelsBaseline[1:9]=colnames(metrics_4app$baseline)
+# labelsBaseline=rep('fill',13)
+labelsBaseline=colnames(metrics_4app$baseline)
 
 
 plotlyOutput("pc1")
@@ -722,10 +706,11 @@ output$pc1=renderPlotly({
   # input$baseline_data_rows_selected
   
   isTruthy(input$localresetBaseline) # adding this statement causes interactive filters to reset,
+  
   # but for some reason no brushes following the reset work in save brush filters action button
   ranges$a=NULL
-  p=par_coords(data=data.frame(baseline_all(),global.filter=in_global_filter$y), n_var=9, 
-             color_var = input$colorBaseline, title='baseline performance', labels=labelsBaseline, source='pcoords', policy_ID = tableSelectBaseline$constraints)
+  p=par_coords(data=data.frame(baseline_all(),global.filter=in_global_filter$y), n_var=9,
+             color_var = input$colorBaseline, title='baseline performance', labels=labelsBaseline, source='pcoords', policy_ID = tableSelectBaseline$constraints, colorbarTitle = input$colorBaseline)
   p=event_register(p,"plotly_restyle")
   p
   
@@ -767,7 +752,6 @@ DT::dataTableOutput("baseline_data")
 
 tableSelectBaseline=reactiveValues(id=NULL)
 
-table_log=reactiveValues()
 
 observe({
   tableSelectBaseline$id=filter.baseline()[['policy']][input$baseline_data_rows_selected]
@@ -1166,7 +1150,7 @@ output$pcSatisficing=renderPlotly({
   # but for some reason no brushes following the reset work in save brush filters action button
   rangesExplore$a=NULL
   p=par_coords(data=data.frame(Explore_all$df, global.filter=in_global_filter$y), n_var=8, 
-             color_var = input$colorExplore, title='Satisficing-related metrics', labels=labelsSatisficing, max_cols = 2:4, source='satisficing', policy_ID = tableSelectExplore$constraints)
+             color_var = input$colorExplore, title='Satisficing-related metrics', labels=labelsSatisficing, max_cols = 2:4, source='satisficing', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore)
   p=event_register(p,"plotly_restyle")
   p
   
@@ -1195,7 +1179,7 @@ output$pcRegret.From.Best=renderPlotly({
   # but for some reason no brushes following the reset work in save brush filters action button
   rangesExplore$a=NULL
   p=par_coords(data=data.frame(Explore_all$df, global.filter=in_global_filter$y), n_var=10, 
-             color_var = input$colorExplore, title='Regret from best', labels=labelsregret.from.best, source='regret.from.best', policy_ID = tableSelectExplore$constraints)
+             color_var = input$colorExplore, title='Regret from best', labels=labelsregret.from.best, source='regret.from.best', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore)
   p=event_register(p,"plotly_restyle")
   p
   
@@ -1222,7 +1206,7 @@ output$pcPercent.Deviation=renderPlotly({
   # but for some reason no brushes following the reset work in save brush filters action button
   rangesExplore$a=NULL
   p=par_coords(data=data.frame(Explore_all$df, global.filter=in_global_filter$y), n_var=10, 
-             color_var = input$colorExplore, title='Percent deviation from baseline', labels=labelsPercent.Deviation, source='percent.deviation', policy_ID = tableSelectExplore$constraints)
+             color_var = input$colorExplore, title='Percent deviation from baseline', labels=labelsPercent.Deviation, source='percent.deviation', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore)
   p=event_register(p,"plotly_restyle")
   p
   
@@ -1250,7 +1234,7 @@ output$pcLaplaces.PIR=renderPlotly({
   # but for some reason no brushes following the reset work in save brush filters action button
   rangesExplore$a=NULL
   p=par_coords(data=data.frame(Explore_all$df, global.filter=in_global_filter$y), n_var=10, 
-             color_var = input$colorExplore, title='Laplaces Principle of Insufficient Reason (mean)', labels=labelsLaplaces.PIR, source='Laplaces.PIR', policy_ID = tableSelectExplore$constraints)
+             color_var = input$colorExplore, title='Laplaces Principle of Insufficient Reason (mean)', labels=labelsLaplaces.PIR, source='Laplaces.PIR', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore)
   p=event_register(p,"plotly_restyle")
   p
   
@@ -1279,7 +1263,7 @@ output$pcHurwicz.OP=renderPlotly({
   # but for some reason no brushes following the reset work in save brush filters action button
   rangesExplore$a=NULL
   p=par_coords(data=data.frame(Explore_all$df, global.filter=in_global_filter$y), n_var=10, 
-             color_var = input$colorExplore, title='Hurwicz Optimism-Pessimism with equal weighting', labels=labelsHurwicz.OP, source='Hurwicz.OP', policy_ID = tableSelectExplore$constraints)
+             color_var = input$colorExplore, title='Hurwicz Optimism-Pessimism with equal weighting', labels=labelsHurwicz.OP, source='Hurwicz.OP', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore)
   p=event_register(p,"plotly_restyle")
   p
   
@@ -1308,7 +1292,7 @@ output$pcmean.variance=renderPlotly({
   # but for some reason no brushes following the reset work in save brush filters action button
   rangesExplore$a=NULL
   p=par_coords(data=data.frame(Explore_all$df, global.filter=in_global_filter$y), n_var=10, 
-             color_var = input$colorExplore, title='mean-variance', labels=labelsmean.variance, source='mean.variance', policy_ID = tableSelectExplore$constraints)
+             color_var = input$colorExplore, title='mean-variance', labels=labelsmean.variance, source='mean.variance', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore)
   p=event_register(p,"plotly_restyle")
   p
   
@@ -1336,7 +1320,7 @@ output$pcmaximin=renderPlotly({
   # but for some reason no brushes following the reset work in save brush filters action button
   rangesExplore$a=NULL
   p=par_coords(data=data.frame(Explore_all$df, global.filter=in_global_filter$y), n_var=10, 
-             color_var = input$colorExplore, title='maximin (worst case SOW)', labels=labelsmaximim, source='maximin', policy_ID = tableSelectExplore$constraints)
+             color_var = input$colorExplore, title='maximin (worst case SOW)', labels=labelsmaximim, source='maximin', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore)
   p=event_register(p,"plotly_restyle")
   p
   
@@ -1951,12 +1935,12 @@ output$pcCustom=renderPlotly({
   if (isTruthy(input$addFront)){
     
           custom=par_coords(data=data.frame(prep_custom.df()[,1:nvar()],front=front.Custom$f, prep_custom.df()[,(nvar()+1):ncol(prep_custom.df())] ,global.filter=in_global_filter$y), n_var=nvar()+1, color_var = color_custom$c, title='user selected metrics', max_cols = max_id(),
-             source='pcoordsCustom', policy_ID = tableSelectCustom$constraints)
+             source='pcoordsCustom', policy_ID = tableSelectCustom$constraints, colorbarTitle = color_custom$c)
 
 
   } else {
     custom=par_coords(data=data.frame(prep_custom.df(),global.filter=in_global_filter$y), n_var=nvar(), color_var = color_custom$c, title='user selected metrics', max_cols = max_id(),
-             source='pcoordsCustom', policy_ID = tableSelectCustom$constraints)
+             source='pcoordsCustom', policy_ID = tableSelectCustom$constraints, colorbarTitle = color_custom$c)
   }
   
 

@@ -1,0 +1,12 @@
+name: CRB-Robustness-App-BOR
+title: CRB-Robustness-App-BOR
+username:
+account: nathanbonham
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 3839497
+bundleId: 4385432
+url: https://nathanbonham.shinyapps.io/CRB-Robustness-App-BOR/
+when: 1616518118.50828
+asMultiple: FALSE
+asStatic: FALSE
