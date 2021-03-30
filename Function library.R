@@ -314,7 +314,7 @@ get_brush_policyID=function(ranges, prep_df, page="baseline"){
 #############################################################################
 
   get_options=function(tradeoff_df){
-    a=colnames(metrics_4app[[tradeoff_df]])
+    a=colnames(metrics_4app_n500[[tradeoff_df]])
     b=colnames(add_to_tradeoff) # use to add to filter option drop down menu
     return(c('None',a,b))
   }

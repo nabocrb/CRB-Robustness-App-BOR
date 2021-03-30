@@ -20,23 +20,15 @@ manual_log=reactiveValues()  # initialize the log
 ######################## import robustness metrics data ############################
 
 # this includes the non dominated front. Calculated externally to save app loading time
-metrics_4app=readRDS('tradeoff_dataframes.rds')
-
-## scale mean_variance between 0 and 1
-
-colID=which(!(colnames(metrics_4app[['mean.variance']]) %in% c('policy', 'front')))
-
-for(i in colID){ # start in column three to skip ID and front
-  max=max(metrics_4app$mean.variance[,i])
-  replace=metrics_4app$mean.variance[,i]/max
-  
-  metrics_4app$mean.variance[,i]=replace
-}
+metrics_4app_n500=readRDS('tradeoff_dataframes.rds')
+metrics_4app_n300=readRDS("tradeoff_dataframes_300SOW.rds")
 
 # used for x axis in stacked histogram plot
-metrics.list=readRDS('Robustness_metrics_463solns_List.rds')
-metrics.list[['baseline']]=metrics_4app$baseline
+metrics.list_n500=readRDS('Robustness_metrics_463solns_List.rds')
+metrics.list_n300=readRDS('Robustness_metrics_463solns_List_300SOW.rds')
 
+metrics.list_n500[['baseline']]=metrics_4app_n500$baseline
+metrics.list_n300[['baseline']]=metrics_4app_n300$baseline
 
 ################### import data for stacked histogram plotting ##########################
 
@@ -46,13 +38,53 @@ wide_data=bar_plot_data$wide_data
 wide_data$policy=1:nrow(wide_data)
 
 add_to_tradeoff_all=wide_data[4:8] # T1e, T1V, maxVol, nTiers to add to each df for filtering
-add_to_tradeoff=dplyr::filter(add_to_tradeoff_all, policy %in% metrics.list$satisficing$policy)[-ncol(add_to_tradeoff_all)]# minus five to remove policy
+add_to_tradeoff=dplyr::filter(add_to_tradeoff_all, policy %in% metrics.list_n500$satisficing$policy)[-ncol(add_to_tradeoff_all)]# minus five to remove policy
 
 ############## import DV so user can add to custom parallel coordinates #########
 DV_prep=read.table('Archive_463_Condensed.txt')
+
 DV=data.frame(policy=wide_data$policy, DV_prep, ntiers=add_to_tradeoff$nTiers, maxVol=add_to_tradeoff$maxVol)
-metrics.list[['DV']]=DV
-metrics_4app[['DV']]=DV
+metrics.list_n500[['DV']]=DV
+metrics.list_n300[['DV']]=DV
+metrics_4app_n500[["DV"]]=DV
+metrics_4app_n300[["DV"]]=DV
+
+############# turn robustness lists into reactive values so user can switch SOW ensemble ###########
+metrics_4app=reactiveValues(l=metrics_4app_n500) # initialize app with n500 SOW ensemble
+metrics.list=reactiveValues(l=metrics.list_n500)# initialize app with n500 SOW ensemble
+
+observeEvent(input$SOWensemble, {
+  
+  if (input$SOWensemble=='cLHS n500'){
+    metrics_4app$l=metrics_4app_n500
+    metrics.list$l=metrics.list_n500
+  } else if (input$SOWensemble=="cLHS n300") {
+    metrics_4app$l=metrics_4app_n300
+    metrics.list$l=metrics.list_n300
+  } else {
+    metrics_4app$l=metrics_4app_n500
+    metrics.list$l=metrics.list_n500
+
+  }
+  
+  
+  
+})
+
+
+# scale mean_variance between 0 and 1
+
+observe({
+
+  colID=which(!(colnames(metrics_4app$l[['mean.variance']]) %in% c('policy', 'front')))
+
+  for(i in colID){ # start in column three to skip ID and front
+   max=max(metrics_4app$l$mean.variance[,i])
+    replace=metrics_4app$l$mean.variance[,i]/max
+  
+    metrics_4app$l$mean.variance[,i]=replace
+  }
+})
 
 ###################### prepare robustness data frames ##################
 ########################################################################
@@ -60,40 +92,65 @@ metrics_4app[['DV']]=DV
 global_filter=reactiveValues(r=1:463) # Initiate with all policies. changes whenever a user hits save button.
 in_global_filter=reactiveValues(y=rep(1,nrow(wide_data)))
 
-###### baseline performance (in MOEA optimization)
-prep_baseline=data.frame(metrics_4app$baseline, add_to_tradeoff)
-baseline_all=reactive({prep_baseline})
-baseline=reactive({dplyr::filter(prep_baseline, policy %in% global_filter$r)})
+# create prep dataframes, reactive to user changing SOW ensemble
 
-###### default satisficing thresholds are: LBSV < 600 KAF, Mead 1000 < 10% and Powell 3490 < 5% #####
+prep=reactiveValues()
 
-prep_satisficing=reactiveValues(df=data.frame(metrics_4app$satisficing, add_to_tradeoff)) # initialize
 
-observeEvent(satisdf$updateTrigger, { # update satisficing if user changes thresholds or objectives
-  
-    prep_satisficing$df=data.frame(satisdf$df, add_to_tradeoff)
-  
-}, ignoreNULL = T, ignoreInit = T)
+observe({
+  ###### baseline performance (in MOEA optimization)
+prep$baseline=data.frame(metrics_4app$l$baseline, add_to_tradeoff)
 
+
+###### LBSV < 600 KAF, Mead 1000 < 10% and Powell 3490 < 5%#####
+prep$satisficing=data.frame(metrics_4app$l$satisficing, add_to_tradeoff)
+# satisficing=reactive({dplyr::filter(prep_satisficing, policy %in% global_filter$r)})
 
 ##### % deviation
-prep_percent_deviation=data.frame(metrics_4app$percent.deviation, add_to_tradeoff)
+prep$percent_deviation=data.frame(metrics_4app$l$percent.deviation, add_to_tradeoff)
+# percent_deviation_tradeoffs=reactive({dplyr::filter(prep_percent_deviation, policy %in% global_filter$r)})
 
 #### tradeoff between mean of objectives (Laplace PIR)
-prep_Laplace=data.frame(metrics_4app$Laplaces.PIR, add_to_tradeoff)
+prep$Laplace=data.frame(metrics_4app$l$Laplaces.PIR, add_to_tradeoff)
+# LaplaceTradeOff=reactive({dplyr::filter(prep_LaplaceTradeOff, policy %in% global_filter$r)})
 
 #### tradeoff between mean-variance
 
-prep_mean_var=data.frame(metrics_4app$mean.variance, add_to_tradeoff)
+prep$mean_var=data.frame(metrics_4app$l$mean.variance, add_to_tradeoff)
+# mean_var_tradeoff=reactive({dplyr::filter(prep_mean_var_tradeoff, policy %in% global_filter$r)})
 
 ### regret from best tradeoffs
-prep_regret2=data.frame(metrics_4app$regret.from.best, add_to_tradeoff)
+prep$regret2=data.frame(metrics_4app$l$regret.from.best, add_to_tradeoff)
+# regret2_tradeoff=reactive({dplyr::filter(prep_regret2, policy %in% global_filter$r)})
 
 #### tradeoffs between Hurwicz OP
-prep_Hurwicz=data.frame(metrics_4app$Hurwicz.OP, add_to_tradeoff)
+prep$Hurwicz=data.frame(metrics_4app$l$Hurwicz.OP, add_to_tradeoff)
+# Hurwicz_tradeoff=reactive({dplyr::filter(prep_Hurwicz_tradeoff, policy %in% global_filter$r)})
 
 #### maximin (worst case SOW) tradeoffs
-prep_maximin=data.frame(metrics_4app$maximin, add_to_tradeoff)
+prep$maximin=data.frame(metrics_4app$l$maximin, add_to_tradeoff)
+# maximin_tradeoff=reactive({dplyr::filter(prep_maximin_tradeoff, policy %in% global_filter$r)})
+
+})
+
+baseline=reactiveValues()
+
+observe({
+  
+  baseline$all=prep$baseline
+  baseline$g=dplyr::filter(prep$baseline, policy %in% global_filter$r)
+  
+})
+
+###### default satisficing thresholds are: LBSV < 600 KAF, Mead 1000 < 10% and Powell 3490 < 5% #####
+# update satisficing if user changes thresholds or objectives
+
+observeEvent(satisdf$updateTrigger, { 
+  
+    prep$satisficing=data.frame(satisdf$df, add_to_tradeoff)
+  
+}, ignoreNULL = T, ignoreInit = T)
+
 
 ###### prepare reactiveValue global filters log object ######
 
@@ -273,7 +330,7 @@ logBaseline=reactiveValues(log=df.initialize)
 
 observeEvent(input$manualfilterBaseline, {
   
-  temp=manual_filters(ID_key='IDBaseline', unique_thresh_ID = 'Baseline',dataframe = baseline(), page="baseline") # returns list of ID and log
+  temp=manual_filters(ID_key='IDBaseline', unique_thresh_ID = 'Baseline',dataframe = baseline$g, page="baseline") # returns list of ID and log
   manualIDBaseline$r=temp[[1]]
   
   logBaseline$log=rbind(logBaseline$log, temp[[2]])
@@ -286,7 +343,7 @@ ranges <- reactiveValues(a=list())
 #### get ranges from brushing
 
 observeEvent(eventExpr = event_data("plotly_restyle", source = "pcoords"),{
-  temp=get_brush_ranges(source = "pcoords", prep_df = prep_baseline)
+  temp=get_brush_ranges(source = "pcoords", prep_df = prep$baseline)
   if (is.na(temp)){
     # do nothing
   } else {
@@ -297,7 +354,7 @@ observeEvent(eventExpr = event_data("plotly_restyle", source = "pcoords"),{
 
 #### get policies from brushing
 observeEvent(input$brushfilterBaseline,{
-  temp=get_brush_policyID(ranges=ranges$a, prep_df = prep_baseline, page="baseline") # returns list of policy IDs and log
+  temp=get_brush_policyID(ranges=ranges$a, prep_df = prep$baseline, page="baseline") # returns list of policy IDs and log
   interactiveIDBaseline$r=temp[[1]]
   
   # update log
@@ -327,7 +384,7 @@ observeEvent(input$tablefilterBaseline,{
 
 filter.baseline=reactive({ # because baseline() already accounts for global filter, filter.baseline is intersection of global and local POLICY ID filter only
   
-  dplyr::filter(baseline(), policy %in% policiesIDBaseline$r)
+  dplyr::filter(baseline$g, policy %in% policiesIDBaseline$r)
   
 })
 
@@ -380,7 +437,7 @@ Row {data-height=325}
 
 # create 13 blank labels since par_coords function takes 13 variables
 # labelsBaseline=rep('fill',13)
-labelsBaseline=colnames(metrics_4app$baseline)
+labelsBaseline=colnames(metrics_4app_n500$baseline)
 
 
 plotlyOutput("pc1")
@@ -388,15 +445,14 @@ plotlyOutput("pc1")
 
 output$pc1=renderPlotly({
   
-
   isTruthy(input$localresetBaseline) # adding this statement causes interactive filters to reset,
   
   if (input$KeepPoliciesTF==TRUE){
-    data=data.frame(baseline_all(),global.filter=in_global_filter$y)
+    data=data.frame(baseline$all,global.filter=in_global_filter$y)
   } else if (input$KeepPoliciesTF==FALSE){
     data=filter.baseline()
   } else {
-    data=data.frame(baseline_all(),global.filter=in_global_filter$y)
+    data=data.frame(baseline$all,global.filter=in_global_filter$y)
   }
 
   p=par_coords(data=data, n_var=9,
@@ -463,7 +519,7 @@ Column{.sidebar data-width=225}
 
 ```{r, Exploration UI}
 
-df_names=names(metrics_4app)
+df_names=names(metrics_4app_n500)
 name=reactiveValues(n='satisficing')
 observeEvent(input$active_tab,{
     name$n=df_names[input$active_tab+1]
@@ -671,23 +727,23 @@ Explore_all=reactiveValues()
 observe({
   # Explore_all$df=NULL
   if (!isTruthy(input$active_tab)){
-    Explore_all$df=prep_satisficing$df
+    Explore_all$df=prep$satisficing
   } else if (input$active_tab==0){
-    Explore_all$df=prep_satisficing$df
+    Explore_all$df=prep$satisficing
   } else if (input$active_tab==1){
-    Explore_all$df=prep_regret2
+    Explore_all$df=prep$regret2
   } else if (input$active_tab==2){
-    Explore_all$df=prep_percent_deviation
+    Explore_all$df=prep$percent_deviation
   } else if (input$active_tab==3){
-    Explore_all$df=prep_Laplace
+    Explore_all$df=prep$Laplace
   } else if (input$active_tab==4){
-    Explore_all$df=prep_Hurwicz
+    Explore_all$df=prep$Hurwicz
   } else if (input$active_tab==5){
-    Explore_all$df=prep_mean_var
+    Explore_all$df=prep$mean_var
   } else if (input$active_tab==6) {
-    Explore_all$df=prep_maximin
+    Explore_all$df=prep$maximin
   } else {
-    Explore_all$df=prep_satisficing$df
+    Explore_all$df=prep$satisficing
   }
 })
 
@@ -825,10 +881,6 @@ Row {.tabset .tabset-fade data-height=325}
 
 ### Satisficing-related
 ```{r, satisficing par coords}
-# create 13 blank labels since par_coords function takes 13 variables
-labelsSatisficing=rep('fill',13)
-labelsSatisficing[1:8]=colnames(metrics_4app$satisficing)
-
 
 plotlyOutput("pcSatisficing")
 
@@ -864,10 +916,7 @@ output$pcSatisficing=renderPlotly({
 ### Regret from best
 ```{r, par coords regret from best}
 
-# create 13 blank labels since par_coords function takes 13 variables
-labelsregret.from.best=rep('fill',13)
-labelsregret.from.best[1:10]=colnames(metrics_4app$regret.from.best)
-
+labelsregret.from.best=colnames(metrics_4app_n500$regret.from.best)
 
 plotlyOutput("pcRegret.From.Best")
 
@@ -900,9 +949,8 @@ output$pcRegret.From.Best=renderPlotly({
 ### Percent deviation
 ```{r, par coords percent deviation}
 
-# create 13 blank labels since par_coords function takes 13 variables
-labelsPercent.Deviation=rep('fill',13)
-labelsPercent.Deviation[1:10]=colnames(metrics_4app$percent.deviation)
+
+labelsPercent.Deviation=colnames(metrics_4app_n500$percent.deviation)
 
 plotlyOutput("pcPercent.Deviation")
 
@@ -935,10 +983,7 @@ output$pcPercent.Deviation=renderPlotly({
 ### Laplace's PIR
 ```{r, par coords Laplaces PIR}
 
-# create 13 blank labels since par_coords function takes 13 variables
-labelsLaplaces.PIR=rep('fill',13)
-labelsLaplaces.PIR[1:10]=colnames(metrics_4app$Laplaces.PIR)
-
+labelsLaplaces.PIR=colnames(metrics_4app_n500$Laplaces.PIR)
 
 plotlyOutput("pcLaplaces.PIR")
 
@@ -974,9 +1019,8 @@ output$pcLaplaces.PIR=renderPlotly({
 
 ```{r}
 
-# create 13 blank labels since par_coords function takes 13 variables
-labelsHurwicz.OP=rep('fill',13)
-labelsHurwicz.OP[1:10]=colnames(metrics_4app$Hurwicz.OP)
+labelsHurwicz.OP=colnames(metrics_4app_n500$Hurwicz.OP)
+
 
 plotlyOutput("pcHurwicz.OP")
 
@@ -1009,10 +1053,8 @@ output$pcHurwicz.OP=renderPlotly({
 ### Mean-variance
 
 ```{r, par coords mean variance}
-# create 13 blank labels since par_coords function takes 13 variables
-labelsmean.variance=rep('fill',13)
-labelsmean.variance[1:10]=colnames(metrics_4app$mean.variance)
 
+labelsmean.variance=colnames(metrics_4app_n500$mean.variance)
 
 plotlyOutput("pcmean.variance")
 
@@ -1045,9 +1087,8 @@ output$pcmean.variance=renderPlotly({
 
 ### Maximin
 ```{r, par coords maximin}
-# create 13 blank labels since par_coords function takes 13 variables
-labelsmaximim=rep('fill',13)
-labelsmaximim[1:10]=colnames(metrics_4app$maximin)
+
+labelsmaximim=colnames(metrics_4app_n500$maximin)
 
 
 plotlyOutput("pcmaximin")
@@ -1157,13 +1198,18 @@ Column{.sidebar data-width=225}
 
 ```{r, custom UI}
 
-metric_types=c("",names(metrics_4app)) # add a blank element to beginning. This becomes default, and can be used to fail req()
+metric_types=c("",names(metrics_4app_n500)) # add a blank element to beginning. This becomes default, and can be used to fail req()
 
 # update satisficing in metrics_4app and metrics_list
-metrics.list.react=reactiveValues(l=metrics.list) # initiliaze
-metrics_4app.react=reactiveValues(l=metrics_4app) # initialize
+metrics.list.react=reactiveValues(l=metrics.list_n500) # initiliaze
+metrics_4app.react=reactiveValues(l=metrics_4app_n500) # initialize
 
-observeEvent(satisdf$updateTrigger, {
+observe({ # this observer will update metrics.list.react$l if the ensemble is changed by user
+  metrics.list.react$l=metrics.list$l
+  metrics_4app.react$l=metrics_4app$l
+})
+
+observeEvent(satisdf$updateTrigger, { # this observer updates the satisficing df when user recalculates
   
   metrics.list.react$l$satisficing=satisdf$df
   metrics_4app.react$l$satisficing=satisdf$df
@@ -1486,7 +1532,7 @@ downloadHandler(filename="Custom filtered policies.xlsx", content=function(file)
 ```{r, process Custom UI, include=FALSE}
 
 # create custom dataframe
-prep_custom.df=eventReactive(eventExpr={input$apply| input$addFront},{
+prep_custom.df=eventReactive(eventExpr={input$apply| input$addFront | reset$SOWchange > 0},{
   
 
   for (i in 1:13){ # loop through user input, determine number of metrics
@@ -1519,6 +1565,8 @@ prep_custom.df=eventReactive(eventExpr={input$apply| input$addFront},{
     
     df=data.frame(df[,1:cols], add_to_tradeoff)
   }
+  reset$SOWchange=0
+  
   df
 }, ignoreNULL = T, ignoreInit = T)
 
@@ -1656,8 +1704,19 @@ Row {data-height=325}
 
 ```{r, custom parallel coordinates}
 
+includeFront=reactiveValues(Bin=0)
+
+observeEvent(input$addFront, {
+  includeFront$Bin=1
+})
+
+observeEvent(reset$SOWchange>0, {
+  includeFront$Bin=0
+})
+
 nvar=reactive({
-    for (i in 1:13){ # loop through user input, determine number of metrics
+  
+  for (i in 1:13){ # loop through user input, determine number of metrics
     if (!isTruthy(input[[paste0('metric',(i))]])){
       break
     }
@@ -1692,7 +1751,7 @@ output$pcCustom=renderPlotly({
   }
   
 
-  if (isTruthy(input$addFront)){
+  if (includeFront$Bin>0){
     
     if (input$KeepPoliciesTF==TRUE){
     data=data.frame(prep_custom.df()[,1:nvar()],front=front.Custom$f, prep_custom.df()[,(nvar()+1):ncol(prep_custom.df())] ,global.filter=in_global_filter$y)
@@ -1782,6 +1841,144 @@ observe({
 
 ```
 
+
+Rank correlation{data-orientation=rows}
+========================================
+
+Column{.sidebar data-width=225}
+--------------------------------
+
+```{r, rank cor UI}
+h3("x axis")
+
+selectInput('SOW1x', label='SOW ensemble', selected='cLHS n500', choices=c('cLHS n500', 'cLHS n300'))
+
+
+SOW=reactiveValues()
+observeEvent(input$SOW1x,{
+  SOW$x=if(input$SOW1x=='cLHS n500'){metrics.list_n500} else if (input$SOW1x=='cLHS n300'){metrics.list_n300} else {metrics.list_n500}
+})
+
+renderUI({
+
+  req(input$SOW1x)
+
+  selectInput('CorTypex','metric type', choices=names(SOW$x), selected=names(SOW$x)[1])
+
+})
+
+
+h3("y axis")
+
+selectInput('SOW1y', label='SOW ensemble', selected='cLHS n300', choices=c('cLHS n500', 'cLHS n300'))
+
+observeEvent(input$SOW1y,{
+  SOW$y=if(input$SOW1y=='cLHS n500'){metrics.list_n500} else if (input$SOW1y=='cLHS n300'){metrics.list_n300} else {metrics.list_n500}
+})
+
+renderUI({
+
+  req(input$SOW1y)
+  selectInput('CorTypey','metric type', choices=names(SOW$y), selected=names(SOW$y)[1])
+
+})
+
+
+```
+
+Row
+-----------------------------------------
+
+### Kendall Tau rank correlation
+
+```{r}
+
+library(Kendall)
+
+rankCor=reactive({
+
+  req(input$CorTypex)
+  req(input$CorTypey)
+
+  
+  x=SOW$x[[input$CorTypex]][-1]
+  y=SOW$y[[input$CorTypey]][-1]
+
+  x_rank=data.frame(matrix(nrow=nrow(x), ncol=ncol(x)))
+  colnames(x_rank)=colnames(x)
+
+  for(i in 1:ncol(x)){
+    correction=ifelse(startsWith(colnames(x)[i], 'satisficing'),-1,1)
+    x_rank[,i]=rank(correction*x[,i])
+  
+  }
+
+  y_rank=data.frame(matrix(nrow=nrow(y), ncol=ncol(y)))
+  colnames(y_rank)=colnames(y)
+
+  for(i in 1:ncol(y)){
+   correction=ifelse(startsWith(colnames(y)[i], 'satisficing'),-1,1)
+   y_rank[,i]=rank(correction*y[,i])
+    
+  }
+
+
+  cor.df=data.frame(matrix(nrow=ncol(x)*ncol(y), ncol=3))
+  colnames(cor.df)=c('x', 'y', 'rank.cor')
+
+  c=1
+  for (yi in 1:ncol(y)){# loop through y variables
+  
+    y_temp=y_rank[,yi]
+  
+    for (xi in 1:ncol(x)){# loop through x variables
+    
+      x_temp=x_rank[,xi]
+    
+    # cor=Kendall(x,y)$tau
+    
+      cor.df$y[c]=colnames(y_rank)[yi]
+      cor.df$x[c]=colnames(x_rank)[xi]
+      cor.df$rank.cor[c]=Kendall(x_temp,y_temp)$tau
+    
+      c=c+1
+    
+    }
+  
+  }
+  cor.df
+})
+
+renderPlotly({
+  
+  req(nrow(rankCor())>0)
+  
+  x=rankCor()[['x']]
+  y=rankCor()[['y']]
+  z=rankCor()[["rank.cor"]]
+
+  axis=function(name){
+    return(list(title=name))
+  }
+  
+  fig=plot_ly(type='heatmap', colorscale = "Portland",
+             
+             x=x, y=y, z=z, xgap=3, ygap=3
+             
+             
+  ) %>% layout(xaxis=axis(input$SOW1x), yaxis=axis(input$SOW1y), title='Kendall Tau rank correlation', margin=list(l=50,r=40,b=60,t=40,   pad=0))
+
+  fig=colorbar(fig, limits=c(-1.05,1.05))
+  fig
+  
+})
+
+
+```
+
+
+
+
 settings {.hidden data-orientation=columns}
 =====================================
 
@@ -1790,7 +1987,7 @@ Column {.tabset data-width=100}
 
 ### Plotting options
 
-```{r}
+```{r, settings plot options}
 # see color options here: https://plotly.com/r/reference/#parcoords
 
 h4('Par Coords color scale')
@@ -1802,6 +1999,16 @@ prettyToggle("ReverseTF", label_on='   Yes   ', label_off='No', value=FALSE, wid
 h4('Keep or Remove policies from par coords?')
 prettyToggle("KeepPoliciesTF", label_on='Keep', label_off='Remove', value=TRUE, width = '200px', bigger=TRUE)
 
+h4('Select SOW ensemble')
+selectInput('SOWensemble', label=NULL, selected='cLHS n500', choices=c('cLHS n500', 'cLHS n300'))
+
+observeEvent(input$SOWensemble,{
+
+  reset$SOWchange=1
+
+}, ignoreNULL = TRUE, ignoreInit = TRUE)
+
+
 
 ```
 
@@ -1809,10 +2016,13 @@ prettyToggle("KeepPoliciesTF", label_on='Keep', label_off='Remove', value=TRUE, 
 
 ```{r satisficing function}
 
-obj=read.table('objectives_all463.txt') # load data for calculating robustness
+obj_all=read.table('objectives_all463.txt') # load data for calculating robustness
 
-vol_index=which(colnames(obj) %in% c('LB.Shortage.Volume',"LB.Shortage.Volume.Policy"))
-obj[,vol_index]=obj[,vol_index]/1000 # convert to KAF
+vol_index=which(colnames(obj_all) %in% c('LB.Shortage.Volume',"LB.Shortage.Volume.Policy"))
+obj_all[,vol_index]=obj_all[,vol_index]/1000 # convert to KAF
+
+SOW_500_300_100=readRDS("SOW ensemble 500_300_100.rds") # list of SOW ensembles
+SOW_id=sort(SOW_500_300_100[[2]]$model) # SOW IDs of the 300 member SOW ensemble
 
 ```
 
@@ -1820,7 +2030,7 @@ obj[,vol_index]=obj[,vol_index]/1000 # convert to KAF
 ```{r user defined satisficing UI}
 
 h4("Select one or more objectives")
-selectInput("satisObj",label=NULL, multiple = T, choices=colnames(obj)[-c(1,2)])
+selectInput("satisObj",label=NULL, multiple = T, choices=colnames(obj_all)[-c(1,2)])
 
 h4('Enter thresholds separated by commas')
 textInput("satisThresh", label=NULL, placeholder='eg: 10,600', width="200px")
@@ -1846,6 +2056,13 @@ observeEvent(input$CalcSatis, {
   showNotification('Calculating', type='message', duration=7)
   
   satisdf$df=NULL # reset satisdf
+  
+  # change the ensemble based on user input
+  if (input$SOWensemble=="cLHS n300"){
+    obj=dplyr::filter(obj, TraceNumber %in% SOW_id) # filter CRSS objectives output to the 300 SOW
+  } else {
+    obj=obj_all
+  }
   
   # names=input$satisObj
   # cat(file=stderr(), 'names:', names, "\n")
@@ -1914,6 +2131,7 @@ Column {.tabset .tabset-fade data-width=400}
 plot.df=read.table('Mead1000_Powell3490_ThreshSensitivity_results.txt')
 plot.df2=read.table('LBSV_Mead1000_Powell3490_ThreshSensitivity_results.txt')
 
+# note that this sensitivity analysis was performed with cLHS n500 ensemble, not cLHS n300
 # see Function libary.R for font style and functions to return title list and axes lists
 
 ```
