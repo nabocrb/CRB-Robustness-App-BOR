@@ -30,6 +30,12 @@ metrics.list_n300=readRDS('Robustness_metrics_463solns_List_300SOW.rds')
 metrics.list_n500[['baseline']]=metrics_4app_n500$baseline
 metrics.list_n300[['baseline']]=metrics_4app_n300$baseline
 
+# for consistency, change satisficing.LBSV to satisficing.LB.Shortage.Volume
+colnames(metrics_4app_n500$satisficing)=gsub(x=colnames(metrics_4app_n500$satisficing), pattern="LBSV", replacement = "LB.Shortage.Volume")
+colnames(metrics_4app_n300$satisficing)=gsub(x=colnames(metrics_4app_n300$satisficing), pattern="LBSV", replacement = "LB.Shortage.Volume")
+colnames(metrics.list_n500$satisficing)=gsub(x=colnames(metrics.list_n500$satisficing), pattern="LBSV", replacement = "LB.Shortage.Volume")
+colnames(metrics.list_n300$satisficing)=gsub(x=colnames(metrics.list_n300$satisficing), pattern="LBSV", replacement = "LB.Shortage.Volume")
+
 ################### import data for stacked histogram plotting ##########################
 
 bar_plot_data=readRDS(file='data for stacked bar plot.rds')
@@ -98,38 +104,31 @@ prep=reactiveValues()
 
 
 observe({
-  ###### baseline performance (in MOEA optimization)
+  
+###### baseline performance (in MOEA optimization)
 prep$baseline=data.frame(metrics_4app$l$baseline, add_to_tradeoff)
-
 
 ###### LBSV < 600 KAF, Mead 1000 < 10% and Powell 3490 < 5%#####
 prep$satisficing=data.frame(metrics_4app$l$satisficing, add_to_tradeoff)
-# satisficing=reactive({dplyr::filter(prep_satisficing, policy %in% global_filter$r)})
 
 ##### % deviation
 prep$percent_deviation=data.frame(metrics_4app$l$percent.deviation, add_to_tradeoff)
-# percent_deviation_tradeoffs=reactive({dplyr::filter(prep_percent_deviation, policy %in% global_filter$r)})
 
 #### tradeoff between mean of objectives (Laplace PIR)
 prep$Laplace=data.frame(metrics_4app$l$Laplaces.PIR, add_to_tradeoff)
-# LaplaceTradeOff=reactive({dplyr::filter(prep_LaplaceTradeOff, policy %in% global_filter$r)})
 
 #### tradeoff between mean-variance
 
 prep$mean_var=data.frame(metrics_4app$l$mean.variance, add_to_tradeoff)
-# mean_var_tradeoff=reactive({dplyr::filter(prep_mean_var_tradeoff, policy %in% global_filter$r)})
 
 ### regret from best tradeoffs
 prep$regret2=data.frame(metrics_4app$l$regret.from.best, add_to_tradeoff)
-# regret2_tradeoff=reactive({dplyr::filter(prep_regret2, policy %in% global_filter$r)})
 
 #### tradeoffs between Hurwicz OP
 prep$Hurwicz=data.frame(metrics_4app$l$Hurwicz.OP, add_to_tradeoff)
-# Hurwicz_tradeoff=reactive({dplyr::filter(prep_Hurwicz_tradeoff, policy %in% global_filter$r)})
 
 #### maximin (worst case SOW) tradeoffs
 prep$maximin=data.frame(metrics_4app$l$maximin, add_to_tradeoff)
-# maximin_tradeoff=reactive({dplyr::filter(prep_maximin_tradeoff, policy %in% global_filter$r)})
 
 })
 
@@ -142,19 +141,36 @@ observe({
   
 })
 
-###### default satisficing thresholds are: LBSV < 600 KAF, Mead 1000 < 10% and Powell 3490 < 5% #####
-# update satisficing if user changes thresholds or objectives
+###### update prep and baseline reactive values if user selects a subset with Kennard Stone #########
 
-observeEvent(satisdf$updateTrigger, { 
+KenStone.samples=read.table("KenStone.samples.txt", header = T)
+
+KS=reactiveValues(index=1:463) # preallocate KS index
+
+observeEvent(input$KSApply,{ # Get KS index when user hits apply button in settings page
   
-    prep$satisficing=data.frame(satisdf$df, add_to_tradeoff)
+  req(isTruthy(input$KSmetric))  
   
-}, ignoreNULL = T, ignoreInit = T)
+  if (input$KSmetric=="Decision Variables") { # get policy ID from KenStone.samples
+    KS$index=KenStone.samples$DV[1:input$KSnSample] 
+  } else { # baseline performance
+    KS$index=KenStone.samples$baseline[1:input$KSnSample]
+  }
+}, ignoreInit = F, ignoreNULL = F)
+
+observeEvent(input$KSApply, { # Subset prep dataframes. Execute on apply button in settings page
+
+  for (name in names(prep)){ # subset the prep dfs by KSindex
+    prep[[name]]=dplyr::filter(prep[[name]], policy %in% KS$index)
+  }
+
+  
+}, ignoreInit = F, ignoreNULL = T)
 
 
 ###### prepare reactiveValue global filters log object ######
 
-df.initialize=data.frame(matrix(ncol=6, nrow=1))
+df.initialize=data.frame(matrix(ncol=6, nrow=1), stringsAsFactors = FALSE)
 colnames(df.initialize)=c("page", "metric", "filter.type", "lower", "upper", "table.selection.ID")
 
 filterLog=reactiveValues(global=df.initialize, local=df.initialize)
@@ -283,7 +299,17 @@ actionButton('manualfilterBaseline',label='save manual filters', width=190)
 div(style="margin-bottom:5px") # adds padding between buttons
 actionButton('brushfilterBaseline',label='save brush filters', width=190)
 div(style="margin-bottom:5px") # adds padding between buttons
-actionButton('tablefilterBaseline',label='save table selections', width=190)
+
+h4("table selections:", align="center")
+
+fluidRow(column(width=3,
+  actionButton('tableKeepBaseline',label='keep', width=91)),
+  column(width=3, offset=2,
+  actionButton("tableRemoveBaseline", label="remove", width=93))
+  )
+
+
+
 div(style="margin-bottom:5px") # adds padding between buttons
 actionButton('localresetBaseline',label='reset local filters', width=190)
 div(style="margin-bottom:20px") # adds padding between buttons
@@ -372,12 +398,35 @@ observe({
 }
 )
 
-observeEvent(input$tablefilterBaseline,{
+
+
+observeEvent(input$tableKeepBaseline, {
+  
   policiesIDBaseline$r=intersect(policiesIDBaseline$r, tableSelectBaseline$id)
   
-  add_vec=c("baseline", "policy", "table select", NA, NA, paste(as.character(tableSelectBaseline$id), collapse=","))
-  logBaseline$log=rbind(logBaseline$log, add_vec)
-})
+  add_vec=c("Baseline", "policy", "table keep", NA, NA, paste(as.character(tableSelectBaseline$id), collapse=","))
+  
+  temp=df.initialize
+  temp[1,]=add_vec
+  
+  logBaseline$log=rbind(logBaseline$log,temp)
+  
+}, ignoreInit = T)
+
+observeEvent(input$tableRemoveBaseline, {
+  
+  all=1:nrow(wide_data)
+  subset=all[-tableSelectBaseline$id]
+  
+  policiesIDBaseline$r=intersect(policiesIDBaseline$r, subset)
+  
+  add_vec=c("Baseline", "policy", "table remove", NA, NA, paste(as.character(tableSelectBaseline$id), collapse=","))
+  temp=df.initialize
+  temp[1,]=add_vec
+  logBaseline$log=rbind(logBaseline$log, temp)
+  
+}, ignoreInit = T)
+
 
 
 ### establish filter.baseline
@@ -435,8 +484,6 @@ Row {data-height=325}
 
 ```{r, baseline par_coords}
 
-# create 13 blank labels since par_coords function takes 13 variables
-# labelsBaseline=rep('fill',13)
 labelsBaseline=colnames(metrics_4app_n500$baseline)
 
 
@@ -448,11 +495,11 @@ output$pc1=renderPlotly({
   isTruthy(input$localresetBaseline) # adding this statement causes interactive filters to reset,
   
   if (input$KeepPoliciesTF==TRUE){
-    data=data.frame(baseline$all,global.filter=in_global_filter$y)
+    data=data.frame(baseline$all,global.filter=in_global_filter$y[KS$index])
   } else if (input$KeepPoliciesTF==FALSE){
     data=filter.baseline()
   } else {
-    data=data.frame(baseline$all,global.filter=in_global_filter$y)
+    data=data.frame(baseline$all,global.filter=in_global_filter$y[KS$index])
   }
 
   p=par_coords(data=data, n_var=9,
@@ -477,9 +524,9 @@ renderPlotly({
 
   input$resetBaseline
 
-  DV_plot(metric=filter.baseline(), to_plot = filter.baseline()[["policy"]], preferred_direction = 'min',
+  DV_plot(metric=data.frame(metrics.list$l$baseline, add_to_tradeoff), to_plot = filter.baseline()[["policy"]], preferred_direction = 'min',
           metric_label = input$xAxisBaseline)
-
+  
 
 })
 
@@ -491,7 +538,7 @@ renderPlotly({
   output$baseline_data <- DT::renderDataTable({
     input$localresetBaseline
     select(filter.baseline(), -starts_with("X"))
-  },options = list(scrollY="245px", scrollX="100px", pageLength=10), server = TRUE
+  },options = list(scrollY="245px", scrollX="100px", pageLength=10), server = TRUE, filter="none"
 )
 
 DT::dataTableOutput("baseline_data")
@@ -526,6 +573,18 @@ observeEvent(input$active_tab,{
     # cat(file=stderr(), 'name$n=', name$n, "\n") # prints page name to console for debugging
 })
 
+renderUI({
+  req(name$n=="Hurwicz.OP")
+  sliderInput("HurwicWeight", label="Best-case weight", min=0, max=1, value=0.5, step=0.05, width=170, ticks = F)
+})
+
+renderUI({
+  req(name$n=="Hurwicz.OP")
+  req(Hurwicdf$calcWeight != input$HurwicWeight) # only give option to calculate if weight has changed
+  
+  actionButton("HurwicCalc", label= "update weight", width=190, class="btn-warning")
+  
+})
 
 h3('Local filters')
 dropdownButton(label='manual filters', circle = F, width = 190,
@@ -594,7 +653,7 @@ renderUI({
 )
 
 
-div(style="margin-bottom:20px") # adds padding between buttons
+div(style="margin-bottom:5px") # adds padding between buttons
 renderUI({
   req(name$n)
   actionButton('manualfilterExplore', 'save manual filters', width=190)
@@ -609,9 +668,16 @@ renderUI({
 })
 div(style="margin-bottom:5px") # adds padding between buttons
 
+h4("table selections:", align="center")
+
 renderUI({
   req(name$n)
-  actionButton('tablefilterExplore',label='save table selections', width=190)
+  
+  fluidRow(column(width=3,
+    actionButton('tableKeepExplore',label='keep', width=91)),
+    column(width=3, offset=2,
+    actionButton("tableRemoveExplore", label="remove", width=93))
+    )
 
 })
 div(style="margin-bottom:5px") # adds padding between buttons
@@ -621,7 +687,8 @@ renderUI({
   actionButton('localresetExplore',label='reset local filters', width=190)
 
 })
-div(style="margin-bottom:20px") # adds padding between buttons
+div(style="margin-bottom:10px") # adds padding between buttons
+
 
 h3("Global filters")
 renderUI({
@@ -637,8 +704,6 @@ renderUI({
 
 div(style="margin-bottom:5px") # adds padding between buttons
 
-
-div(style="margin-bottom:5px") # adds padding between buttons
 
 h3("Plot options")
 renderUI({
@@ -721,11 +786,10 @@ observeEvent(input$active_page, {
 })
 
 
-Explore_all=reactiveValues()
+Explore_all=reactiveValues(df=metrics_4app_n500$satisficing)
 
 
 observe({
-  # Explore_all$df=NULL
   if (!isTruthy(input$active_tab)){
     Explore_all$df=prep$satisficing
   } else if (input$active_tab==0){
@@ -745,6 +809,7 @@ observe({
   } else {
     Explore_all$df=prep$satisficing
   }
+
 })
 
 Explore=reactiveValues()
@@ -820,13 +885,29 @@ observe({
 )
 
 ### update policies for selections from table
-observeEvent(input$tablefilterExplore, {
+observeEvent(input$tableKeepExplore, {
   policiesIDExplore$r=intersect(policiesIDExplore$r, tableSelectExplore$id)
   
-  add_vec=c(paste0("Explore.", name$n), "policy", "table select", NA, NA, paste(as.character(tableSelectExplore$id), collapse=","))
-  logExplore$log=rbind(logExplore$log, add_vec)
+  add_vec=c(paste0("Explore.", name$n), "policy", "table keep", NA, NA, paste(as.character(tableSelectExplore$id), collapse=","))
+  temp=df.initialize
+  temp[1,]=add_vec
+  logExplore$log=rbind(logExplore$log, temp)
   
-})
+}, ignoreInit = T)
+
+observeEvent(input$tableRemoveExplore, {
+  
+  all=1:nrow(wide_data)
+  subset=all[-tableSelectExplore$id]
+  
+  policiesIDExplore$r=intersect(policiesIDExplore$r, subset)
+  
+  add_vec=c(paste0("Explore.", name$n), "policy", "table remove", NA, NA, paste(as.character(tableSelectExplore$id), collapse=","))
+  temp=df.initialize
+  temp[1,]=add_vec
+  logExplore$log=rbind(logExplore$log, temp)
+  
+}, ignoreInit = T)
 
 ### establish filter.Explore
 
@@ -893,11 +974,11 @@ output$pcSatisficing=renderPlotly({
   isTruthy(input$localresetExplore) # adding this statement causes interactive filters to reset,
 
     if (input$KeepPoliciesTF==TRUE){
-    data=data.frame(Explore_all$df,global.filter=in_global_filter$y)
+    data=data.frame(Explore_all$df,global.filter=in_global_filter$y[KS$index])
   } else if (input$KeepPoliciesTF==FALSE){
     data=filter.Explore()
   } else {
-    data=data.frame(Explore_all$df,global.filter=in_global_filter$y)
+    data=data.frame(Explore_all$df,global.filter=in_global_filter$y[KS$index])
   }
   
   nvar=which(colnames(Explore_all$df)==colnames(add_to_tradeoff)[1])-1 # find where add_to_tradeoff begins, substract one index
@@ -929,11 +1010,11 @@ output$pcRegret.From.Best=renderPlotly({
   isTruthy(input$localresetExplore) # adding this statement causes interactive filters to reset,
 
     if (input$KeepPoliciesTF==TRUE){
-    data=data.frame(Explore_all$df,global.filter=in_global_filter$y)
+    data=data.frame(Explore_all$df,global.filter=in_global_filter$y[KS$index])
   } else if (input$KeepPoliciesTF==FALSE){
     data=filter.Explore()
   } else {
-    data=data.frame(Explore_all$df,global.filter=in_global_filter$y)
+    data=data.frame(Explore_all$df,global.filter=in_global_filter$y[KS$index])
   }
   
   
@@ -964,11 +1045,11 @@ output$pcPercent.Deviation=renderPlotly({
 
   
     if (input$KeepPoliciesTF==TRUE){
-    data=data.frame(Explore_all$df,global.filter=in_global_filter$y)
+    data=data.frame(Explore_all$df,global.filter=in_global_filter$y[KS$index])
   } else if (input$KeepPoliciesTF==FALSE){
     data=filter.Explore()
   } else {
-    data=data.frame(Explore_all$df,global.filter=in_global_filter$y)
+    data=data.frame(Explore_all$df,global.filter=in_global_filter$y[KS$index])
   }
   
   p=par_coords(data=data, n_var=10, 
@@ -997,11 +1078,11 @@ output$pcLaplaces.PIR=renderPlotly({
 
   
     if (input$KeepPoliciesTF==TRUE){
-    data=data.frame(Explore_all$df,global.filter=in_global_filter$y)
+    data=data.frame(Explore_all$df,global.filter=in_global_filter$y[KS$index])
   } else if (input$KeepPoliciesTF==FALSE){
     data=filter.Explore()
   } else {
-    data=data.frame(Explore_all$df,global.filter=in_global_filter$y)
+    data=data.frame(Explore_all$df,global.filter=in_global_filter$y[KS$index])
   }
   
   
@@ -1016,6 +1097,45 @@ output$pcLaplaces.PIR=renderPlotly({
 ```
 
 ### Hurwicz optimism-pessimism
+
+```{r, HurwicOP calcs, include=FALSE}
+
+Hurwicdf=reactiveValues(df=metrics.list_n500$Hurwicz.OP, calcWeight=0.5) # establish reactive object to store Hurwic dataframe
+
+observeEvent(input$HurwicCalc, {
+  
+  showNotification('Calculating', type='message', duration=7)
+  
+  Hurwicdf$df=NULL # reset Hurwicdf
+  
+  # change the ensemble based on user input
+  if (input$SOWensemble=="cLHS n300"){
+    obj=dplyr::filter(obj, TraceNumber %in% SOW_id) # filter CRSS objectives output to the 300 SOW
+  } else {
+    obj=obj_all
+  }
+  
+  df=HurwiczOP(data=obj, objectives=colnames(obj)[-c(1,2,4)], best_case_weight = input$HurwicWeight)
+  
+  Hurwicdf$df=df # update 
+
+  Hurwicdf$calcWeight=input$HurwicWeight # update weight of current calculations
+  
+  temp=data.frame(df, add_to_tradeoff) # add DV
+  temp2=dplyr::filter(temp, policy %in% KS$index) # subset to KS index
+  metrics.list$l$Hurwicz.OP=temp2 # update both metrics list
+  metrics_4app$l$Hurwicz.OP=temp2
+  prep$Hurwicz=data.frame(temp2) # update the prep data frame so PC plot updates
+  
+  showNotification('Hurwic OP weights updated', type='message', duration=7)
+  
+}, ignoreNULL = T, ignoreInit = T)
+
+
+
+```
+
+
 
 ```{r}
 
@@ -1033,15 +1153,19 @@ output$pcHurwicz.OP=renderPlotly({
   isTruthy(input$localresetExplore) # adding this statement causes interactive filters to reset,
 
     if (input$KeepPoliciesTF==TRUE){
-    data=data.frame(Explore_all$df,global.filter=in_global_filter$y)
+    data=data.frame(Explore_all$df,global.filter=in_global_filter$y[KS$index])
   } else if (input$KeepPoliciesTF==FALSE){
     data=filter.Explore()
   } else {
-    data=data.frame(Explore_all$df,global.filter=in_global_filter$y)
+    data=data.frame(Explore_all$df,global.filter=in_global_filter$y[KS$index])
   }
   
-  p=par_coords(data=data, n_var=10, 
-             color_var = input$colorExplore, title='Hurwicz Optimism-Pessimism with equal weighting', labels=labelsHurwicz.OP, source='Hurwicz.OP', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore)
+  weight=isolate(input$HurwicWeight) # I want title to reflect the weight without renderPlotly taking a dependency on it
+  
+  nvar=if("front" %in% colnames(data)) {10} else {9} # 10 axes if front is included, 9 otherwise
+  
+  p=par_coords(data=data, n_var=nvar, 
+             color_var = input$colorExplore, title=paste0('Hurwicz Optimism-Pessimism: best-case weight = ', weight, " , worst-case weight = ", (1-weight) ), labels=labelsHurwicz.OP, source='Hurwicz.OP', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore)
   p=event_register(p,"plotly_restyle")
   p
   
@@ -1068,11 +1192,11 @@ output$pcmean.variance=renderPlotly({
 
   
     if (input$KeepPoliciesTF==TRUE){
-    data=data.frame(Explore_all$df,global.filter=in_global_filter$y)
+    data=data.frame(Explore_all$df,global.filter=in_global_filter$y[KS$index])
   } else if (input$KeepPoliciesTF==FALSE){
     data=filter.Explore()
   } else {
-    data=data.frame(Explore_all$df,global.filter=in_global_filter$y)
+    data=data.frame(Explore_all$df,global.filter=in_global_filter$y[KS$index])
   }
   
   p=par_coords(data=data, n_var=10, 
@@ -1103,11 +1227,11 @@ output$pcmaximin=renderPlotly({
 
   
     if (input$KeepPoliciesTF==TRUE){
-    data=data.frame(Explore_all$df,global.filter=in_global_filter$y)
+    data=data.frame(Explore_all$df,global.filter=in_global_filter$y[KS$index])
   } else if (input$KeepPoliciesTF==FALSE){
     data=filter.Explore()
   } else {
-    data=data.frame(Explore_all$df,global.filter=in_global_filter$y)
+    data=data.frame(Explore_all$df,global.filter=in_global_filter$y[KS$index])
   }
   
   p=par_coords(data=data, n_var=10, 
@@ -1134,7 +1258,6 @@ output$Explore_DV=renderPlotly({
   # check=input$xAxisExplore
   # cat(file=stderr(), 'x axis=', check, "\n") # prints dimension to R console
 
-  
   req(isTruthy(input$xAxisExplore)) # removes temporary error message caused by input$xAxisCustom not rendering until input$apply
   req(input$xAxisExplore %in% colnames(filter.Explore()))
   
@@ -1147,13 +1270,16 @@ output$Explore_DV=renderPlotly({
   
   req(isTruthy(filter.Explore()))
   req(nrow(filter.Explore())>0)
-
+  req(name$n)
+  
   # check=colnames(filter.Explore())
   # cat(file=stderr(), 'cols=', check, "\n") # prints dimension to R console
   # check=min_or_max_Explore$a
   # cat(file=stderr(), 'min or max =', check, "\n") # prints dimension to R console
   
-  DV_plot(metric=filter.Explore(), to_plot = filter.Explore()[["policy"]], preferred_direction = max_or_min,
+  all_policies=data.frame(metrics_4app$l[[name$n]], add_to_tradeoff)
+  
+  DV_plot(metric=all_policies, to_plot = filter.Explore()[["policy"]], preferred_direction = max_or_min,
           metric_label = input$xAxisExplore)
   
 })
@@ -1192,7 +1318,7 @@ observe({
 Select your own{data-orientation=rows}
 =======================================
 
-Column{.sidebar data-width=225}
+Column{.sidebar data-width=235}
 --------------------------------
 
 
@@ -1209,11 +1335,6 @@ observe({ # this observer will update metrics.list.react$l if the ensemble is ch
   metrics_4app.react$l=metrics_4app$l
 })
 
-observeEvent(satisdf$updateTrigger, { # this observer updates the satisficing df when user recalculates
-  
-  metrics.list.react$l$satisficing=satisdf$df
-  metrics_4app.react$l$satisficing=satisdf$df
-})
 
 # metric selection drop down
 h3('Select dimensions')
@@ -1456,13 +1577,20 @@ renderUI({
   actionButton('brushfilterCustom',label='save brush filters', width = 190)
 
 })
-div(style="margin-bottom:5px") # adds padding between buttons
+
+h4("table selections:", align="center")
 
 renderUI({
-  req(input$apply)
-  actionButton('tablefilterCustom',label='save table selections', width = 190)
+  req(name$n)
+  
+  fluidRow(column(width=3,
+    actionButton('tableKeepCustom',label='keep', width=91)),
+    column(width=3, offset=2,
+    actionButton("tableRemoveCustom", label="remove", width=93))
+    )
 
 })
+
 div(style="margin-bottom:5px") # adds padding between buttons
 
 renderUI({
@@ -1519,11 +1647,15 @@ downloadHandler(filename="Custom filtered policies.xlsx", content=function(file)
   data=logCustom$log
   local=data[rowSums(is.na(data)) != ncol(data),]
 
-  data.list=list("policies"=select(filter.Custom(), -starts_with("X")), "global.filters"=global, "local.filters"=local)
+  temp=select(filter.Custom(), -starts_with("X"))
+  cat(file=stderr(), 'your name:', colnames(temp), "\n") # prints dimension to R console
+  df=dplyr::filter(temp, policy %in% KS$index)
+  
+  
+  data.list=list("policies"=df, "global.filters"=global, "local.filters"=local)
   write.xlsx(data.list, file)
   
 })
-
 
 
 ```
@@ -1645,12 +1777,30 @@ observe({
 
 ### update policiesIDCustom based on table selections
 
-observeEvent(input$tablefilterCustom,{
+observeEvent(input$tableKeepCustom, {
+  
   policiesIDCustom$r=intersect(policiesIDCustom$r, tableSelectCustom$id)
   
   add_vec=c("Custom", "policy", "table select", NA, NA, paste(as.character(tableSelectCustom$id), collapse=","))
-  logCustom$log=rbind(logCustom$log, add_vec)
-})
+  temp=df.initialize
+  temp[1,]=add_vec
+  logCustom$log=rbind(logCustom$log, temp)
+  
+}, ignoreInit = T)
+
+observeEvent(input$tableRemoveCustom, {
+  
+  all=1:nrow(wide_data)
+  subset=all[-tableSelectCustom$id]
+  
+  policiesIDCustom$r=intersect(policiesIDCustom$r, subset)
+  
+  add_vec=c("Custom", "policy", "table remove", NA, NA, paste(as.character(tableSelectCustom$id), collapse=","))
+  temp=df.initialize
+  temp[1,]=add_vec
+  logCustom$log=rbind(logCustom$log, temp)
+  
+}, ignoreInit = T)
 
 ### establish filter.custom
 
@@ -1663,7 +1813,9 @@ filter.Custom=reactive({ # because Custom() already accounts for global filter, 
 ### apply global filter
 
 observeEvent(input$global_filterCustom, {
-  global_filter$r=intersect(global_filter$r, policiesIDCustom$r)
+  
+  temp=intersect(policiesIDCustom$r, KS$index)
+  global_filter$r=intersect(global_filter$r, temp )
   
   remaining=length(global_filter$r)
   showNotification(paste(remaining, 'policies remain in global filter', sep=' ' ), type='message', duration=7)
@@ -1739,9 +1891,10 @@ output$pcCustom=renderPlotly({
   input$KeepPoliciesTF # this causes plot to rerender if user changes options from keeping filtered policies to removing them or vise versa
   
   validate(need(input$apply, 'Select robustness metrics'))
-
   isTruthy(input$localresetCustom)
 
+  
+  
   # silent error occurs if I don't provide a default value for color_var. This happens because ParCoords Col Var hasn't initiated until filter policies is opened
   
   if (isTruthy(input$colorCustom)){
@@ -1754,11 +1907,14 @@ output$pcCustom=renderPlotly({
   if (includeFront$Bin>0){
     
     if (input$KeepPoliciesTF==TRUE){
-    data=data.frame(prep_custom.df()[,1:nvar()],front=front.Custom$f, prep_custom.df()[,(nvar()+1):ncol(prep_custom.df())] ,global.filter=in_global_filter$y)
+    temp=data.frame(prep_custom.df()[,1:nvar()],front=front.Custom$f, prep_custom.df()[,(nvar()+1):ncol(prep_custom.df())] ,global.filter=in_global_filter$y)
+    data=dplyr::filter(temp, policy %in% KS$index)
     } else if (input$KeepPoliciesTF==FALSE){
-    data=data.frame(filter.Custom()[,1:nvar()],front=front.Custom$f[filter.Custom()[['policy']]], filter.Custom()[,(nvar()+1):ncol(filter.Custom())])
+    temp=data.frame(filter.Custom()[,1:nvar()],front=front.Custom$f[filter.Custom()[['policy']]], filter.Custom()[,(nvar()+1):ncol(filter.Custom())])
+    data=dplyr::filter(temp, policy %in% KS$index)
     } else {
-    data=data.frame(prep_custom.df()[,1:nvar()],front=front.Custom$f, prep_custom.df()[,(nvar()+1):ncol(prep_custom.df())] ,global.filter=in_global_filter$y)
+    temp=data.frame(prep_custom.df()[,1:nvar()],front=front.Custom$f, prep_custom.df()[,(nvar()+1):ncol(prep_custom.df())] ,global.filter=in_global_filter$y)
+    data=dplyr::filter(temp, policy %in% KS$index)
     }
     
     
@@ -1769,11 +1925,13 @@ output$pcCustom=renderPlotly({
   } else {
     
       if (input$KeepPoliciesTF==TRUE){
-    data=data.frame(prep_custom.df(),global.filter=in_global_filter$y)
+    temp=data.frame(prep_custom.df(),global.filter=in_global_filter$y)
+    data=dplyr::filter(temp, policy %in% KS$index)
     } else if (input$KeepPoliciesTF==FALSE){
-    data=filter.Custom()
+    data=dplyr::filter(filter.Custom(), policy %in% KS$index)
     } else {
-    data=data.frame(prep_custom.df(),global.filter=in_global_filter$y)
+    temp=data.frame(prep_custom.df(),global.filter=in_global_filter$y)
+    data=dplyr::filter(temp, policy %in% KS$index)
     }
     # colnames=colnames(data)
     # n_var=nvar()
@@ -1810,12 +1968,12 @@ min_or_max_cust=reactive({
 
 renderPlotly({
   req(input$xAxisCustom) # removes temporary error message caused by input$xAxisCustom not rendering until input$apply
-  
-  DV_plot(metric=filter.Custom(), to_plot = filter.Custom()[["policy"]], preferred_direction = min_or_max_cust(),
+  DV_plot(metric=prep_custom.df(), to_plot = intersect(filter.Custom()[["policy"]], KS$index) , preferred_direction = min_or_max_cust(),
           metric_label = input$xAxisCustom)
   
 })
-  
+
+# 
 
 ```
 
@@ -1825,7 +1983,8 @@ renderPlotly({
 
 output$Custom_data <- DT::renderDataTable({
   input$localresetCustom
-  select(filter.Custom(), -starts_with("X"))
+  temp=select(filter.Custom(), -starts_with("X"))
+  dplyr::filter(temp, policy %in% KS$index)
 }, options = list(scrollY="245px", scrollX="100px", pageLength=10)
 )
 
@@ -1834,10 +1993,13 @@ DT::dataTableOutput("Custom_data")
 tableSelectCustom=reactiveValues(id=NULL)
 
 observe({
+  
   tableSelectCustom$id=filter.Custom()[['policy']][input$Custom_data_rows_selected]
   a=tableSelectCustom$id-0.25
   b=tableSelectCustom$id+0.25
-  tableSelectCustom$constraints=matrix(c(a,b),ncol=2, byrow = FALSE)})
+  tableSelectCustom$constraints=matrix(c(a,b),ncol=2, byrow = FALSE)
+
+})
 
 ```
 
@@ -1997,7 +2159,7 @@ h4('Reverse color scale?')
 prettyToggle("ReverseTF", label_on='   Yes   ', label_off='No', value=FALSE, width = '200px', bigger = T)
 
 h4('Keep or Remove policies from par coords?')
-prettyToggle("KeepPoliciesTF", label_on='Keep', label_off='Remove', value=TRUE, width = '200px', bigger=TRUE)
+prettyToggle("KeepPoliciesTF", label_on='Keep', label_off='Remove', value=FALSE, width = '200px', bigger=TRUE)
 
 h4('Select SOW ensemble')
 selectInput('SOWensemble', label=NULL, selected='cLHS n500', choices=c('cLHS n500', 'cLHS n300'))
@@ -2008,7 +2170,11 @@ observeEvent(input$SOWensemble,{
 
 }, ignoreNULL = TRUE, ignoreInit = TRUE)
 
+h4("Subset policies with Kennard Stone sampling")
 
+selectInput("KSmetric", label="Metric", choices = c("Decision Variables", "Baseline performance"), selected = "Decision Variables")
+sliderInput("KSnSample", label = "Number of policies", min = 2, max=463, value=463, round=2)
+actionButton("KSApply", label = "Subset policies")
 
 ```
 
@@ -2049,7 +2215,7 @@ actionButton("CalcSatis", label="Calculate")
 
 ```{r calculate satisficing}
 
-satisdf=reactiveValues(df=NULL, updateTrigger=0) # establish reactive object to store satisficing dataframe
+satisdf=reactiveValues(df=metrics.list_n500$satisficing) # establish reactive object to store satisficing dataframe
 
 observeEvent(input$CalcSatis, {
   
@@ -2112,8 +2278,13 @@ observeEvent(input$CalcSatis, {
 #   check=dim(satisdf$df)
 # cat(file=stderr(), 'dimensions:', check, "\n") # prints dimension to R console
 
-  satisdf$updateTrigger=satisdf$updateTrigger+1
-  
+    temp=data.frame(satisdf$df, add_to_tradeoff) # add DV
+    temp2=dplyr::filter(temp, policy %in% KS$index) # subset to KS index
+    metrics.list$l$satisficing=temp2 # update both metrics list
+    metrics_4app$l$satisficing=temp2
+    prep$satisficing=temp2 # update the prep dataobject
+    
+    
   showNotification('Satisficing thresholds updated', type='message', duration=7)
   
 })

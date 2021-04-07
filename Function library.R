@@ -478,6 +478,66 @@ satisficing.deviation=function(data=obj, objectives=c('LB.Shortage.Volume', 'Mea
 } # end function
 
 
+############################# Hurwicz optimism-pessimism rule ##################
+###############################################################################
+
+HurwiczOP=function(data=obj, objectives=c('LB.Shortage.Volume', 'Mead.1000', 'Powell.3490'),
+                   best_case_weight=0.5, best_if=rep('min', length(objectives)), 
+                   policy_ID_column=2, SOW_column=1){
+  
+  ####### prepare data frame to store results
+  
+  ncol=length(objectives)+1 #plus one for policy ID
+  nrow=length(unique(data[, policy_ID_column])) # one row per policy
+  
+  metric.df=matrix(NA, nrow=nrow, ncol=ncol)
+  metric.df=data.frame(metric.df)
+  colnames(metric.df)=c('policy', objectives)
+  metric.df[,1]=unique(data[, policy_ID_column])
+  
+  policy_iter=unique(data[, policy_ID_column]) # id of policies to loop through
+  
+  worst_case_weight=1-best_case_weight
+  
+  
+  for (r in 1:length(policy_iter)){ ########## loop through policies
+    
+    filter.policy=data[which(data[,policy_ID_column]==policy_iter[r]),]
+    
+    ##################### Compute metric #################################
+    
+    
+    for (cr in 1:length(objectives)){
+      
+      min=min(filter.policy[,which(colnames(filter.policy)==objectives[cr])])
+      max=max(filter.policy[,which(colnames(filter.policy)==objectives[cr])])
+      
+      if(best_if[cr]=='min'){
+        
+        metric.df[r,(cr+1)]=(best_case_weight*min + worst_case_weight*max)/2
+        
+      } else if (best_if[cr]== 'max'){
+        
+        metric.df[r,(cr+1)]=(best_case_weight*max + worst_case_weight*min)/2
+        
+      } else {
+        print('This function only supports max or min for the best_if values')
+      }
+      
+      
+      
+    } #  objective loop  
+    
+    
+    
+  } # end policy loop
+  
+  return(metric.df)
+  
+} # end function
+
+
+
 ####################### functions and font definitions for sensitivity heatmaps in options page ####################
 ####################################################################################################################
 
