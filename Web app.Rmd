@@ -143,8 +143,6 @@ observe({
 
 ###### update prep and baseline reactive values if user selects a subset with Kennard Stone #########
 
-KenStone.samples=read.table("KenStone.samples.txt", header = T)
-
 KS=reactiveValues(index=1:463) # preallocate KS index
 
 observeEvent(input$KSApply,{ # Get KS index when user hits apply button in settings page
@@ -152,20 +150,25 @@ observeEvent(input$KSApply,{ # Get KS index when user hits apply button in setti
   req(isTruthy(input$KSmetric))  
   
   if (input$KSmetric=="Decision Variables") { # get policy ID from KenStone.samples
-    KS$index=KenStone.samples$DV[1:input$KSnSample] 
+    temp=data.frame(policy=1:nrow(wide_data), DV_prep)
+    data=dplyr::filter(temp, policy %in% global_filter$r) # input data is DV of policies in global filter
+    tempi=kenStone(X=scale(data[-1]), k=input$KSnSample)$model # get row indices of Ken Stone samples from DV data. By subsetting temp to global filter policies, you are sampling from policies contained in global filters only
+    KS$index=data[["policy"]][tempi] # convert row indices to policy ID. save in KS$index
+    
   } else { # baseline performance
-    KS$index=KenStone.samples$baseline[1:input$KSnSample]
+    # KS$index=KenStone.samples$baseline[1:input$KSnSample]
+    tempi=kenStone(X=scale(filter.baseline()[2:9]), k=input$KSnSample)$model # get row indices of Ken Stone samples from filter.baseline(). By using filter.baseline() as data, you are sampling from policies contained in intersection of global filters and local baseline filters.
+    KS$index=filter.baseline()[["policy"]][tempi] # convert row indices to policy ID. save in KS$index
+    
   }
-}, ignoreInit = F, ignoreNULL = F)
-
-observeEvent(input$KSApply, { # Subset prep dataframes. Execute on apply button in settings page
-
+  
   for (name in names(prep)){ # subset the prep dfs by KSindex
     prep[[name]]=dplyr::filter(prep[[name]], policy %in% KS$index)
   }
 
   
-}, ignoreInit = F, ignoreNULL = T)
+  
+}, ignoreInit = F, ignoreNULL = F)
 
 
 ###### prepare reactiveValue global filters log object ######
@@ -209,15 +212,9 @@ observeEvent(input$resetExplore, {
 }, priority = 0,  ignoreNULL = TRUE, ignoreInit = TRUE)
 
 observeEvent(eventExpr = {reset$Baseline > 0 | reset$Custom > 0 | reset$Explore > 0},
-             {global_filter$r=1:463
-             
-            showNotification('Global filter is reset', type='message', duration=7)
+             {global_filter$r=1:nrow(wide_data)
 
-             
-             # Debugging code below
-             # cat(file=stderr(), 'global filter$r:', global_filter$r, "\n")
-             # cat(file=stderr(), 'input$resetBaseline:', input$resetBaseline, "\n")
-             # cat(file=stderr(), 'input$resetCustom:', input$resetCustom, "\n")
+            showNotification('Global filter is reset', type='message', duration=7)
 
              in_global_filter$y=rep(1,nrow(wide_data))
              rangesExplore$a=NULL
@@ -227,7 +224,7 @@ observeEvent(eventExpr = {reset$Baseline > 0 | reset$Custom > 0 | reset$Explore 
              filterLog$local=df.initialize}, priority = 10, ignoreNULL = TRUE, ignoreInit = TRUE)
 
 ### global filter column to add to data frames for coloring par coords
-observeEvent(eventExpr = {input$global_filterBaseline | input$global_filterExplore | input$global_filterCustom}, {all=1:463
+observeEvent(eventExpr = {input$global_filterBaseline | input$global_filterExplore | input$global_filterCustom}, {all=1:nrow(wide_data)
 y=rep(1,length(all))
 y[which(!(all %in% global_filter$r))]=0
 in_global_filter$y=y
@@ -1123,8 +1120,8 @@ observeEvent(input$HurwicCalc, {
   
   temp=data.frame(df, add_to_tradeoff) # add DV
   temp2=dplyr::filter(temp, policy %in% KS$index) # subset to KS index
-  metrics.list$l$Hurwicz.OP=temp2 # update both metrics list
-  metrics_4app$l$Hurwicz.OP=temp2
+  metrics.list$l$Hurwicz.OP=df # update both metrics list
+  metrics_4app$l$Hurwicz.OP=df
   prep$Hurwicz=data.frame(temp2) # update the prep data frame so PC plot updates
   
   showNotification('Hurwic OP weights updated', type='message', duration=7)
@@ -1994,7 +1991,9 @@ tableSelectCustom=reactiveValues(id=NULL)
 
 observe({
   
-  tableSelectCustom$id=filter.Custom()[['policy']][input$Custom_data_rows_selected]
+  data=dplyr::filter(filter.Explore(), policy %in% KS$index)
+
+  tableSelectCustom$id=data[['policy']][input$Custom_data_rows_selected]
   a=tableSelectCustom$id-0.25
   b=tableSelectCustom$id+0.25
   tableSelectCustom$constraints=matrix(c(a,b),ncol=2, byrow = FALSE)
@@ -2173,7 +2172,7 @@ observeEvent(input$SOWensemble,{
 h4("Subset policies with Kennard Stone sampling")
 
 selectInput("KSmetric", label="Metric", choices = c("Decision Variables", "Baseline performance"), selected = "Decision Variables")
-sliderInput("KSnSample", label = "Number of policies", min = 2, max=463, value=463, round=2)
+sliderInput("KSnSample", label = "Number of policies", min = 2, max=463, value=463, step=4)
 actionButton("KSApply", label = "Subset policies")
 
 ```
@@ -2280,8 +2279,8 @@ observeEvent(input$CalcSatis, {
 
     temp=data.frame(satisdf$df, add_to_tradeoff) # add DV
     temp2=dplyr::filter(temp, policy %in% KS$index) # subset to KS index
-    metrics.list$l$satisficing=temp2 # update both metrics list
-    metrics_4app$l$satisficing=temp2
+    metrics.list$l$satisficing=df # update both metrics list
+    metrics_4app$l$satisficing=df
     prep$satisficing=temp2 # update the prep dataobject
     
     

@@ -7,7 +7,7 @@
 library(knitr)
 library(flexdashboard)
 library(dplyr)
-library(plotly) # one method for par coords. Not super happy: no tooltips
+library(plotly) # one method for par coords.
 library(shiny)
 library(shinyWidgets)
 library(stringr)
@@ -15,6 +15,8 @@ library(gdata) #startsWith
 library(nsga2R)
 library(DT) # for sortable data table
 library(openxlsx)
+library(prospectr) # for Kennard Stone sampling
+
 
 ####################################### wrapper to plot_ly parallel coordinates #################################
 #################################################################################################################
