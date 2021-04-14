@@ -162,6 +162,22 @@ observeEvent(input$KSApply,{ # Get KS index when user hits apply button in setti
     
   }
   
+  
+  if (nrow(prep[["baseline"]]) < input$KSnSample){ # if user tries to INCREASE the number of KS samples
+    showNotification("# of samples > # of policies. Resetting polices to global filter.", type="warning", duration=7)
+    
+    prep$baseline=data.frame(metrics_4app$l$baseline, add_to_tradeoff)
+    prep$satisficing=data.frame(metrics_4app$l$satisficing, add_to_tradeoff)
+    prep$percent_deviation=data.frame(metrics_4app$l$percent.deviation, add_to_tradeoff)
+    prep$Laplace=data.frame(metrics_4app$l$Laplaces.PIR, add_to_tradeoff)
+    prep$mean_var=data.frame(metrics_4app$l$mean.variance, add_to_tradeoff)
+    prep$regret2=data.frame(metrics_4app$l$regret.from.best, add_to_tradeoff)
+    prep$Hurwicz=data.frame(metrics_4app$l$Hurwicz.OP, add_to_tradeoff)
+    prep$maximin=data.frame(metrics_4app$l$maximin, add_to_tradeoff)
+    
+  }
+  
+  
   for (name in names(prep)){ # subset the prep dfs by KSindex
     prep[[name]]=dplyr::filter(prep[[name]], policy %in% KS$index)
   }
@@ -170,6 +186,17 @@ observeEvent(input$KSApply,{ # Get KS index when user hits apply button in setti
   
 }, ignoreInit = F, ignoreNULL = F)
 
+# need to subset all prep df again if user recalculates satisficing or Hurwicz
+
+observeEvent(satisdf$trigger > 0 | Hurwicdf$trigger > 0, {
+  
+  for (name in names(prep)){ # subset the prep dfs by KSindex
+    prep[[name]]=dplyr::filter(prep[[name]], policy %in% KS$index)
+  }
+  
+  satisdf$trigger=0
+  Hurwicdf$trigger=0
+})
 
 ###### prepare reactiveValue global filters log object ######
 
@@ -1097,7 +1124,7 @@ output$pcLaplaces.PIR=renderPlotly({
 
 ```{r, HurwicOP calcs, include=FALSE}
 
-Hurwicdf=reactiveValues(df=metrics.list_n500$Hurwicz.OP, calcWeight=0.5) # establish reactive object to store Hurwic dataframe
+Hurwicdf=reactiveValues(df=metrics.list_n500$Hurwicz.OP, calcWeight=0.5, trigger=0) # establish reactive object to store Hurwic dataframe
 
 observeEvent(input$HurwicCalc, {
   
@@ -1117,12 +1144,11 @@ observeEvent(input$HurwicCalc, {
   Hurwicdf$df=df # update 
 
   Hurwicdf$calcWeight=input$HurwicWeight # update weight of current calculations
-  
-  temp=data.frame(df, add_to_tradeoff) # add DV
-  temp2=dplyr::filter(temp, policy %in% KS$index) # subset to KS index
-  metrics.list$l$Hurwicz.OP=df # update both metrics list
+
+  metrics.list$l$Hurwicz.OP=df # update both metrics list. prep$Hurwicz updates because of dependency
   metrics_4app$l$Hurwicz.OP=df
-  prep$Hurwicz=data.frame(temp2) # update the prep data frame so PC plot updates
+
+  Hurwicdf$trigger=1
   
   showNotification('Hurwic OP weights updated', type='message', duration=7)
   
@@ -1146,8 +1172,9 @@ output$pcHurwicz.OP=renderPlotly({
   
   req(isTruthy(Explore_all$df))
   req(isTruthy(input$colorExplore))
+  req(isTruthy(input$HurwicWeight))
   
-  isTruthy(input$localresetExplore) # adding this statement causes interactive filters to reset,
+  isTruthy(input$localresetExplore) # adding this statement causes interactive filters to reset when local reset button applied
 
     if (input$KeepPoliciesTF==TRUE){
     data=data.frame(Explore_all$df,global.filter=in_global_filter$y[KS$index])
@@ -2214,7 +2241,7 @@ actionButton("CalcSatis", label="Calculate")
 
 ```{r calculate satisficing}
 
-satisdf=reactiveValues(df=metrics.list_n500$satisficing) # establish reactive object to store satisficing dataframe
+satisdf=reactiveValues(df=metrics.list_n500$satisficing, trigger=0) # establish reactive object to store satisficing dataframe
 
 observeEvent(input$CalcSatis, {
   
@@ -2277,13 +2304,11 @@ observeEvent(input$CalcSatis, {
 #   check=dim(satisdf$df)
 # cat(file=stderr(), 'dimensions:', check, "\n") # prints dimension to R console
 
-    temp=data.frame(satisdf$df, add_to_tradeoff) # add DV
-    temp2=dplyr::filter(temp, policy %in% KS$index) # subset to KS index
-    metrics.list$l$satisficing=df # update both metrics list
+    metrics.list$l$satisficing=df # update both metrics list. prep$satisficing will update because of dependency
     metrics_4app$l$satisficing=df
-    prep$satisficing=temp2 # update the prep dataobject
     
-    
+    satisdf$trigger=1 # triggers subsetting of prep$satisficing by KS$index
+
   showNotification('Satisficing thresholds updated', type='message', duration=7)
   
 })
