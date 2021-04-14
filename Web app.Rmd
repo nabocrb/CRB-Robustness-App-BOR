@@ -159,8 +159,14 @@ observeEvent(input$KSApply,{ # Get KS index when user hits apply button in setti
     # KS$index=KenStone.samples$baseline[1:input$KSnSample]
     tempi=kenStone(X=scale(filter.baseline()[2:9]), k=input$KSnSample)$model # get row indices of Ken Stone samples from filter.baseline(). By using filter.baseline() as data, you are sampling from policies contained in intersection of global filters and local baseline filters.
     KS$index=filter.baseline()[["policy"]][tempi] # convert row indices to policy ID. save in KS$index
+   
     
   }
+  
+  # if KenStone is used on all policies, the algorithm returns all but one policy. Easiest correction is to check for this circumstance than override KS$index to include all policies
+    if (input$KSnSample == nrow(wide_data)){
+      KS$index=1:nrow(wide_data)
+    }
   
   
   if (nrow(prep[["baseline"]]) < input$KSnSample){ # if user tries to INCREASE the number of KS samples
