@@ -22,7 +22,10 @@ library(prospectr) # for Kennard Stone sampling
 #################################################################################################################
 
 
-par_coords=function(data, max_cols=NULL, n_var, color_var, title='User selected metrics', labels=colnames(data), source=NULL, policy_ID=NULL, color_scale=input$ColorScale, reverse_scale=input$ReverseTF, colorbarTitle=""){
+par_coords=function(data, max_cols=NULL, n_var, color_var, title='User selected metrics', labels=colnames(data), source=NULL, policy_ID=NULL,
+                    color_scale=input$ColorScale, reverse_scale=input$ReverseTF, colorbarTitle="", maintainAxesRange=input$MaintainAxes, axes_data=data){
+  
+  # identify maximization axes
   
   T_F=rep(FALSE,ncol(data))
   
@@ -34,16 +37,22 @@ par_coords=function(data, max_cols=NULL, n_var, color_var, title='User selected 
     
   }
   
+  # custom color palette
   mypal=matrix(nrow=4, ncol=2)
   mypal[,1]=c(0,.25,.75,1)
   mypal[,2]=c('rgb(255,0,0)','rgb(255,102,255)','rgb(153,255,255)','rgb(0,0,255)')
   
-  
+
   dimensions=list()
   for (i in 1: ncol(data[,1:n_var])){
     dimensions[[i]]=list()
     
-    dimensions[[i]][['range']]=sort(range(data[[i]]), decreasing=T_F[i])
+    if (maintainAxesRange==FALSE){ # use axes range of data. This means if policies are removed, axes ranges can shrink
+      dimensions[[i]][['range']]=sort(range(data[[i]]), decreasing=T_F[i])
+    } else { # axes ranges are kept as the range of all policies
+      dimensions[[i]][['range']]=sort(range(axes_data[[i]]), decreasing=T_F[i])
+    }
+    
     dimensions[[i]][['label']]=labels[i]
     dimensions[[i]][['values']]=data[[i]]
     

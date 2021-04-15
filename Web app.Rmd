@@ -533,7 +533,7 @@ output$pc1=renderPlotly({
   }
 
   p=par_coords(data=data, n_var=9,
-             color_var = input$colorBaseline, title='baseline performance', labels=labelsBaseline, source='pcoords', policy_ID = tableSelectBaseline$constraints, colorbarTitle = input$colorBaseline)
+             color_var = input$colorBaseline, title='baseline performance', labels=labelsBaseline, source='pcoords', policy_ID = tableSelectBaseline$constraints, colorbarTitle = input$colorBaseline, axes_data=baseline$g)
   p=event_register(p,"plotly_restyle")
   p
   
@@ -1015,7 +1015,7 @@ output$pcSatisficing=renderPlotly({
   max_cols=which(startsWith(colnames(Explore_all$df), "satisficing."))
   
   p=par_coords(data=data, n_var=nvar, 
-             color_var = input$colorExplore, title='Satisficing-related metrics', labels=colnames(Explore_all$df)[1:nvar], max_cols = max_cols, source='satisficing', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore)
+             color_var = input$colorExplore, title='Satisficing-related metrics', labels=colnames(Explore_all$df)[1:nvar], max_cols = max_cols, source='satisficing', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$df)
   p=event_register(p,"plotly_restyle")
   p
   
@@ -1049,7 +1049,7 @@ output$pcRegret.From.Best=renderPlotly({
   
   
   p=par_coords(data=data, n_var=10, 
-             color_var = input$colorExplore, title='Regret from best', labels=labelsregret.from.best, source='regret.from.best', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore)
+             color_var = input$colorExplore, title='Regret from best', labels=labelsregret.from.best, source='regret.from.best', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$df)
   p=event_register(p,"plotly_restyle")
   p
   
@@ -1083,7 +1083,7 @@ output$pcPercent.Deviation=renderPlotly({
   }
   
   p=par_coords(data=data, n_var=10, 
-             color_var = input$colorExplore, title='Percent deviation from baseline', labels=labelsPercent.Deviation, source='percent.deviation', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore)
+             color_var = input$colorExplore, title='Percent deviation from baseline', labels=labelsPercent.Deviation, source='percent.deviation', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$df)
   p=event_register(p,"plotly_restyle")
   p
   
@@ -1117,7 +1117,7 @@ output$pcLaplaces.PIR=renderPlotly({
   
   
   p=par_coords(data=data, n_var=10, 
-             color_var = input$colorExplore, title='Laplaces Principle of Insufficient Reason (mean)', labels=labelsLaplaces.PIR, source='Laplaces.PIR', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore)
+             color_var = input$colorExplore, title='Laplaces Principle of Insufficient Reason (mean)', labels=labelsLaplaces.PIR, source='Laplaces.PIR', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$df)
   p=event_register(p,"plotly_restyle")
   p
   
@@ -1178,8 +1178,11 @@ output$pcHurwicz.OP=renderPlotly({
   
   req(isTruthy(Explore_all$df))
   req(isTruthy(input$colorExplore))
-  req(isTruthy(input$HurwicWeight))
-  
+
+  weight=isolate(input$HurwicWeight) # I want title to reflect the weight without renderPlotly taking a dependency on it
+  if (is.null(weight)){
+    weight=0.5 # so the title is loaded with correct values upon app initialization
+  }
   isTruthy(input$localresetExplore) # adding this statement causes interactive filters to reset when local reset button applied
 
     if (input$KeepPoliciesTF==TRUE){
@@ -1190,12 +1193,11 @@ output$pcHurwicz.OP=renderPlotly({
     data=data.frame(Explore_all$df,global.filter=in_global_filter$y[KS$index])
   }
   
-  weight=isolate(input$HurwicWeight) # I want title to reflect the weight without renderPlotly taking a dependency on it
   
   nvar=if("front" %in% colnames(data)) {10} else {9} # 10 axes if front is included, 9 otherwise
   
   p=par_coords(data=data, n_var=nvar, 
-             color_var = input$colorExplore, title=paste0('Hurwicz Optimism-Pessimism: best-case weight = ', weight, " , worst-case weight = ", (1-weight) ), labels=labelsHurwicz.OP, source='Hurwicz.OP', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore)
+             color_var = input$colorExplore, title=paste0('Hurwicz Optimism-Pessimism: best-case weight = ', weight, " , worst-case weight = ", (1-weight) ), labels=labelsHurwicz.OP, source='Hurwicz.OP', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$df)
   p=event_register(p,"plotly_restyle")
   p
   
@@ -1230,7 +1232,7 @@ output$pcmean.variance=renderPlotly({
   }
   
   p=par_coords(data=data, n_var=10, 
-             color_var = input$colorExplore, title='mean-variance', labels=labelsmean.variance, source='mean.variance', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore)
+             color_var = input$colorExplore, title='mean-variance', labels=labelsmean.variance, source='mean.variance', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$df)
   p=event_register(p,"plotly_restyle")
   p
   
@@ -1265,7 +1267,7 @@ output$pcmaximin=renderPlotly({
   }
   
   p=par_coords(data=data, n_var=10, 
-             color_var = input$colorExplore, title='maximin (worst case SOW)', labels=labelsmaximim, source='maximin', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore)
+             color_var = input$colorExplore, title='maximin (worst case SOW)', labels=labelsmaximim, source='maximin', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$df)
   p=event_register(p,"plotly_restyle")
   p
   
@@ -1936,6 +1938,8 @@ output$pcCustom=renderPlotly({
 
   if (includeFront$Bin>0){
     
+    axes_data=data.frame(prep_custom.df()[,1:nvar()],front=front.Custom$f, prep_custom.df()[,(nvar()+1):ncol(prep_custom.df())] ,global.filter=in_global_filter$y)
+    
     if (input$KeepPoliciesTF==TRUE){
     temp=data.frame(prep_custom.df()[,1:nvar()],front=front.Custom$f, prep_custom.df()[,(nvar()+1):ncol(prep_custom.df())] ,global.filter=in_global_filter$y)
     data=dplyr::filter(temp, policy %in% KS$index)
@@ -1948,11 +1952,12 @@ output$pcCustom=renderPlotly({
     }
     
     
-          custom=par_coords(data=data, n_var=nvar()+1, color_var = color_custom$c, title='user selected metrics', max_cols = max_id(),
-             source='pcoordsCustom', policy_ID = tableSelectCustom$constraints, colorbarTitle = color_custom$c)
+          custom=par_coords(data=data, n_var=nvar()+1, color_var = color_custom$c, title='user selected metrics', max_cols = max_id(), source='pcoordsCustom', policy_ID = tableSelectCustom$constraints, colorbarTitle = color_custom$c, axes_data=axes_data)
 
 
   } else {
+    
+    axes_data=data.frame(prep_custom.df(),global.filter=in_global_filter$y)
     
       if (input$KeepPoliciesTF==TRUE){
     temp=data.frame(prep_custom.df(),global.filter=in_global_filter$y)
@@ -1968,7 +1973,7 @@ output$pcCustom=renderPlotly({
     # cat(file=stderr(), 'custom columns:', colnames, "\n") # prints dimension to R console
     # 
     custom=par_coords(data=data, n_var=nvar(), color_var = color_custom$c, title='user selected metrics', max_cols = max_id(),
-             source='pcoordsCustom', policy_ID = tableSelectCustom$constraints, colorbarTitle = color_custom$c)
+             source='pcoordsCustom', policy_ID = tableSelectCustom$constraints, colorbarTitle = color_custom$c, axes_data=axes_data)
   }
   
 
@@ -2192,6 +2197,9 @@ prettyToggle("ReverseTF", label_on='   Yes   ', label_off='No', value=FALSE, wid
 
 h4('Keep or Remove policies from par coords?')
 prettyToggle("KeepPoliciesTF", label_on='Keep', label_off='Remove', value=FALSE, width = '200px', bigger=TRUE)
+
+h4("Maintain Par Coords axes ranges of all policies?")
+prettyToggle("MaintainAxes", label_on = "Yes", label_off="No", value=TRUE, width="200px", bigger = TRUE)
 
 h4('Select SOW ensemble')
 selectInput('SOWensemble', label=NULL, selected='cLHS n500', choices=c('cLHS n500', 'cLHS n300'))
