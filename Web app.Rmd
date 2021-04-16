@@ -280,7 +280,7 @@ Column {.tabset .tabset-fade data-width=600}
 
 
 ```{r, background image}
-include_graphics('https://imgur.com/EpuoFyr.png')
+include_graphics('https://i.imgur.com/kYxboar.png')
 
 ```
 
@@ -533,7 +533,7 @@ output$pc1=renderPlotly({
   }
 
   p=par_coords(data=data, n_var=9,
-             color_var = input$colorBaseline, title='baseline performance', labels=labelsBaseline, source='pcoords', policy_ID = tableSelectBaseline$constraints, colorbarTitle = input$colorBaseline, axes_data=baseline$g)
+             color_var = input$colorBaseline, title='baseline performance', labels=labelsBaseline, source='pcoords', policy_ID = tableSelectBaseline$constraints, colorbarTitle = input$colorBaseline, axes_data=metrics.list_n500$baseline)
   p=event_register(p,"plotly_restyle")
   p
   
@@ -603,6 +603,7 @@ observeEvent(input$active_tab,{
     # cat(file=stderr(), 'name$n=', name$n, "\n") # prints page name to console for debugging
 })
 
+# Hurwicz
 renderUI({
   req(name$n=="Hurwicz.OP")
   sliderInput("HurwicWeight", label="Best-case weight", min=0, max=1, value=0.5, step=0.05, width=170, ticks = F)
@@ -616,13 +617,99 @@ renderUI({
   
 })
 
+# satisficing
+renderUI({
+  req(name$n=="satisficing")
+
+  dropdownButton(label='Satisficing calcs', circle = F, width = 220,
+  
+  selectInput("satisObj",label="Select objective(s)", multiple = T, choices=colnames(obj_all)[-c(1,2)]),
+  
+  renderUI({ 
+    req(length(input$satisObj) >=1)
+    sliderInput("satisThresh1", label=paste0(input$satisObj[1], " threshold"), min=min(obj_all[[input$satisObj[1]]]),
+                max=max(obj_all[[input$satisObj[1]]]), value=median(obj_all[[input$satisObj[1]]]))
+    }),
+  
+    renderUI({ 
+    req(length(input$satisObj) >=2)
+    sliderInput("satisThresh2", label=paste0(input$satisObj[2], " threshold"), min=min(obj_all[[input$satisObj[2]]]),
+                max=max(obj_all[[input$satisObj[2]]]), value=median(obj_all[[input$satisObj[2]]]))
+    }),
+  
+    renderUI({ 
+    req(length(input$satisObj) >=3)
+    sliderInput("satisThresh3", label=paste0(input$satisObj[3], " threshold"), min=min(obj_all[[input$satisObj[3]]]),
+                max=max(obj_all[[input$satisObj[3]]]), value=median(obj_all[[input$satisObj[3]]]))
+    }),
+  
+    renderUI({ 
+    req(length(input$satisObj) >=4)
+    sliderInput("satisThresh4", label=paste0(input$satisObj[1], " threshold"), min=min(obj_all[[input$satisObj[4]]]),
+                max=max(obj_all[[input$satisObj[4]]]), value=median(obj_all[[input$satisObj[4]]]))
+    }),
+  
+    renderUI({ 
+    req(length(input$satisObj) >=5)
+    sliderInput("satisThresh5", label=paste0(input$satisObj[5], " threshold"), min=min(obj_all[[input$satisObj[5]]]),
+                max=max(obj_all[[input$satisObj[5]]]), value=median(obj_all[[input$satisObj[5]]]))
+    }),
+  
+    renderUI({ 
+    req(length(input$satisObj) >=6)
+    sliderInput("satisThresh6", label=paste0(input$satisObj[6], " threshold"), min=min(obj_all[[input$satisObj[6]]]),
+                max=max(obj_all[[input$satisObj[6]]]), value=median(obj_all[[input$satisObj[6]]]))
+    }),
+  
+    renderUI({ 
+    req(length(input$satisObj) >=7)
+    sliderInput("satisThresh7", label=paste0(input$satisObj[7], " threshold"), min=min(obj_all[[input$satisObj[7]]]),
+                max=max(obj_all[[input$satisObj[7]]]), value=median(obj_all[[input$satisObj[7]]]))
+    }),
+  
+    renderUI({ 
+    req(length(input$satisObj) >=8)
+    sliderInput("satisThresh8", label=paste0(input$satisObj[8], " threshold"), min=min(obj_all[[input$satisObj[8]]]),
+                max=max(obj_all[[input$satisObj[8]]]), value=median(obj_all[[input$satisObj[8]]]))
+    }),
+
+  div(style="margin-bottom:20px"), # adds padding between buttons
+
+  renderUI({
+    req(length(input$satisObj) >=2)
+    h4('Aggregate objectives?')
+    prettyToggle("AggTF", value=FALSE, label_on = "Aggregrate objectives", label_off = "Don't aggregrate objectives", width = '200px', bigger=T)
+    }),
+
+  div(style="margin-bottom:20px"), # adds padding between buttons
+  
+  renderUI({
+    req(length(input$satisObj) >=1)
+    actionButton("CalcSatis", label="Calculate") 
+  })
+  
+                   )
+
+})
+
+# get options for manual filters, par coords color var, and x axis
+observe({
+    req(name$n)
+  
+  if (name$n=="satisficing"){ # special function for satisficing because user can change names of the axes
+    Explore_all$options=get_satisficing_options()[-1]
+  } else {
+    Explore_all$options=get_options(name$n)[-1]
+  }
+})
+
 h3('Local filters')
 dropdownButton(label='manual filters', circle = F, width = 190,
                
 renderUI({
   req(name$n)
   selectInput("VarExplore1", label = "Filter 1:",
-            choices = get_options(name$n), selected = 'None')
+            choices = c("None", Explore_all$options), selected = 'None')
 }),
 
 renderUI({
@@ -640,7 +727,7 @@ renderUI({
 renderUI({
   req(name$n)
   selectInput("VarExplore2", label = "Filter 2:",
-            choices = get_options(name$n), selected = 'None')
+            choices = c("None", Explore_all$options), selected = 'None')
 }),
 
 renderUI({
@@ -659,7 +746,7 @@ renderUI({
 renderUI({
   req(name$n)
   selectInput("VarExplore3", label = "Filter 3:",
-            choices = get_options(name$n), selected = 'None')
+            choices = c("None", Explore_all$options), selected = 'None')
 }),
 
 renderUI({
@@ -738,13 +825,15 @@ div(style="margin-bottom:5px") # adds padding between buttons
 h3("Plot options")
 renderUI({
   req(name$n)
-  selectInput('colorExplore', label='ParCoords Col Var', choices=c(get_options(name$n)[-1], 'global.filter', 'front'), selected = get_options(name$n)[2], width=190)
+
+  selectInput('colorExplore', label='ParCoords Col Var', choices=c(Explore_all$options, 'global.filter', 'front'), selected = Explore_all$options[1], width=190)
 
 })
 
 renderUI({
   req(name$n)
-  selectInput('xAxisExplore', label = 'Metric for ranking', choices=get_options(name$n)[-1], selected=get_options(name$n)[2], width=190)
+  
+  selectInput('xAxisExplore', label = 'Metric for ranking', choices=Explore_all$options, selected=Explore_all$options[1], width=190)
 })
 
 
@@ -816,28 +905,38 @@ observeEvent(input$active_page, {
 })
 
 
-Explore_all=reactiveValues(df=metrics_4app_n500$satisficing)
+Explore_all=reactiveValues(df=metrics_4app_n500$satisficing, options=get_options("satisficing")[-1], axes=metrics_4app_n500$satisficing)
 
 
 observe({
   if (!isTruthy(input$active_tab)){
     Explore_all$df=prep$satisficing
+    Explore_all$axes=metrics_4app$l$satisficing
   } else if (input$active_tab==0){
     Explore_all$df=prep$satisficing
+    Explore_all$axes=metrics_4app$l$satisficing
   } else if (input$active_tab==1){
     Explore_all$df=prep$regret2
+    Explore_all$axes=metrics_4app$l$regret.from.best
   } else if (input$active_tab==2){
     Explore_all$df=prep$percent_deviation
+    Explore_all$axes=metrics_4app$l$percent.deviation
   } else if (input$active_tab==3){
     Explore_all$df=prep$Laplace
+    Explore_all$axes=metrics_4app$l$Laplaces.PIR
   } else if (input$active_tab==4){
     Explore_all$df=prep$Hurwicz
+    Explore_all$axes=metrics_4app$l$Hurwicz.OP
   } else if (input$active_tab==5){
     Explore_all$df=prep$mean_var
+    Explore_all$axes=metrics_4app$l$mean.variance
   } else if (input$active_tab==6) {
     Explore_all$df=prep$maximin
+    Explore_all$axes=metrics_4app$l$maximin
   } else {
     Explore_all$df=prep$satisficing
+    Explore_all$axes=metrics_4app$l$satisficing
+
   }
 
 })
@@ -990,10 +1089,130 @@ observeEvent(input$colorExplore,{
 Row {.tabset .tabset-fade data-height=325}
 -------------------------------------------
 
+```{r, satisficing calcs data}
+obj_all=read.table('objectives_all463.txt') # load data for calculating robustness
+
+vol_index=which(colnames(obj_all) %in% c('LB.Shortage.Volume',"LB.Shortage.Volume.Policy", "Max.Annual.LB.Shortage"))
+obj_all[,vol_index]=obj_all[,vol_index]/1000 # convert to KAF
+obj_all[["Powell.WY.Release"]]=obj_all[["Powell.WY.Release"]]/(10^6) # convert to MAF
+
+
+SOW_500_300_100=readRDS("SOW ensemble 500_300_100.rds") # list of SOW ensembles
+SOW_id=sort(SOW_500_300_100[[2]]$model) # SOW IDs of the 300 member SOW ensemble
+
+```
+
+```{r, calculate satisficing}
+# create unit mapping. I use this to update Par Coords title
+units=data.frame(LB.Shortage.Volume="KAF", LB.Shortage.Volume.Policy="KAF", Lee.Ferry.Deficit= "%", Mead.1000="%",
+                 Powell.3490="%", LB.Max.Cons.Shortage.Duration="Yr", LB.Shortage.Frequency="%", Max.Annual.LB.Shortage="KAF", Powell.WY.Release="MAF")
+
+
+satisdf=reactiveValues(df=metrics.list_n500$satisficing, trigger=0, title="Satisficing: Mead.1000 < 10% & Powell.3490 < 5% & LB.Shortage.Volume < 600KAF", AggTF=FALSE) # establish reactive object to store satisficing dataframe
+
+# update AggTF with user input
+observeEvent(input$AggTF, {
+  satisdf$AggTF=input$AggTF
+})
+
+observeEvent(input$CalcSatis, {
+  
+  showNotification('Calculating', type='message', duration=7)
+  
+  satisdf$df=NULL # reset satisdf
+  
+  # change the ensemble based on user input
+  if (input$SOWensemble=="cLHS n300"){
+    obj=dplyr::filter(obj, TraceNumber %in% SOW_id) # filter CRSS objectives output to the 300 SOW
+  } else {
+    obj=obj_all
+  }
+  
+  # names=input$satisObj
+  # cat(file=stderr(), 'names:', names, "\n")
+  
+  # create thresholds vector
+  thresholds=vector() # create vector
+  satisdf$title="Satisficing:"
+  for (i in 1:8){
+    if(is.null(input[[paste0("satisThresh",i)]])){ # if Null, exit loop
+      break
+    } else {
+      thresholds[i]=input[[paste0("satisThresh",i)]]
+      add_to_title=paste0(input$satisObj[i], " < ", thresholds[i], units[[input$satisObj[i]]])
+    }
+    
+    
+    if (i==1){
+      satisdf$title=paste(satisdf$title, add_to_title, sep=" ")
+    } else {
+      satisdf$title=paste(satisdf$title, "&", add_to_title, sep=" ")
+    }
+    
+  }
+  
+  # thresholds=unlist(lapply(str_split(input$satisThresh, ','), as.integer))
+  # check=input$satisThresh
+  # cat(file=stderr(), 'thresholds:', thresholds, "\n")
+  
+  if(satisdf$AggTF == TRUE){
+    # calculate satisficing
+    df=satisficing(data=obj, objectives = input$satisObj, thresholds = thresholds)
+    colnames(df)[2]="satisficing"
+    
+    add=satisficing.deviation(data=obj, objectives = input$satisObj, thresholds = thresholds)[,2]
+    df=cbind(df,add)
+    colnames(df)[3]="sat.deviation"
+    
+  } else {
+    # for loop to calculate satisficing for each objective
+    
+      for (i in 1:length(input$satisObj)){ # satisficing
+        
+        if(i==1){# initialize df
+          df=satisficing(data=obj, objectives = input$satisObj[i], thresholds=thresholds[i])
+          colnames(df)[2]=paste0('satisficing.',input$satisObj[i])
+        } else { #
+          add=satisficing(data=obj, objectives = input$satisObj[i], thresholds=thresholds[i])[,2]
+          df=cbind(df,add)
+          colnames(df)[ncol(df)]=paste0('satisficing.',input$satisObj[i])
+          
+        }
+        
+      } # end satisficing
+    
+      for (i in 1:length(input$satisObj)){ #satisficing deviation
+        
+        add=satisficing.deviation(data=obj, objectives = input$satisObj[i], thresholds = thresholds[i])[,2]
+        df=cbind(df,add)
+        colnames(df)[ncol(df)]=paste0("sat.dev.",input$satisObj[i])
+        
+      }
+    
+  }
+  
+  satisdf$df=df # update satisdf
+#   check=dim(satisdf$df)
+# cat(file=stderr(), 'dimensions:', check, "\n") # prints dimension to R console
+
+    metrics.list$l$satisficing=df # update both metrics list. prep$satisficing will update because of dependency
+    metrics_4app$l$satisficing=df
+    
+    satisdf$trigger=1 # triggers subsetting of prep$satisficing by KS$index
+
+  showNotification('Satisficing thresholds updated', type='message', duration=7)
+  
+})
+
+
+```
+
+
 ### Satisficing-related
 ```{r, satisficing par coords}
 
 plotlyOutput("pcSatisficing")
+
 
 
 output$pcSatisficing=renderPlotly({
@@ -1014,8 +1233,10 @@ output$pcSatisficing=renderPlotly({
   nvar=which(colnames(Explore_all$df)==colnames(add_to_tradeoff)[1])-1 # find where add_to_tradeoff begins, substract one index
   max_cols=which(startsWith(colnames(Explore_all$df), "satisficing."))
   
+  
+  
   p=par_coords(data=data, n_var=nvar, 
-             color_var = input$colorExplore, title='Satisficing-related metrics', labels=colnames(Explore_all$df)[1:nvar], max_cols = max_cols, source='satisficing', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$df)
+             color_var = input$colorExplore, title=satisdf$title, labels=colnames(Explore_all$df)[1:nvar], max_cols = max_cols, source='satisficing', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$axes)
   p=event_register(p,"plotly_restyle")
   p
   
@@ -1049,7 +1270,7 @@ output$pcRegret.From.Best=renderPlotly({
   
   
   p=par_coords(data=data, n_var=10, 
-             color_var = input$colorExplore, title='Regret from best', labels=labelsregret.from.best, source='regret.from.best', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$df)
+             color_var = input$colorExplore, title='Regret from best', labels=labelsregret.from.best, source='regret.from.best', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$axes)
   p=event_register(p,"plotly_restyle")
   p
   
@@ -1083,7 +1304,7 @@ output$pcPercent.Deviation=renderPlotly({
   }
   
   p=par_coords(data=data, n_var=10, 
-             color_var = input$colorExplore, title='Percent deviation from baseline', labels=labelsPercent.Deviation, source='percent.deviation', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$df)
+             color_var = input$colorExplore, title='Percent deviation from baseline', labels=labelsPercent.Deviation, source='percent.deviation', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$axes)
   p=event_register(p,"plotly_restyle")
   p
   
@@ -1117,7 +1338,7 @@ output$pcLaplaces.PIR=renderPlotly({
   
   
   p=par_coords(data=data, n_var=10, 
-             color_var = input$colorExplore, title='Laplaces Principle of Insufficient Reason (mean)', labels=labelsLaplaces.PIR, source='Laplaces.PIR', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$df)
+             color_var = input$colorExplore, title='Laplaces Principle of Insufficient Reason (mean)', labels=labelsLaplaces.PIR, source='Laplaces.PIR', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$axes)
   p=event_register(p,"plotly_restyle")
   p
   
@@ -1197,7 +1418,7 @@ output$pcHurwicz.OP=renderPlotly({
   nvar=if("front" %in% colnames(data)) {10} else {9} # 10 axes if front is included, 9 otherwise
   
   p=par_coords(data=data, n_var=nvar, 
-             color_var = input$colorExplore, title=paste0('Hurwicz Optimism-Pessimism: best-case weight = ', weight, " , worst-case weight = ", (1-weight) ), labels=labelsHurwicz.OP, source='Hurwicz.OP', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$df)
+             color_var = input$colorExplore, title=paste0('Hurwicz Optimism-Pessimism: best-case weight = ', weight, " , worst-case weight = ", (1-weight) ), labels=labelsHurwicz.OP, source='Hurwicz.OP', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$axes)
   p=event_register(p,"plotly_restyle")
   p
   
@@ -1232,7 +1453,7 @@ output$pcmean.variance=renderPlotly({
   }
   
   p=par_coords(data=data, n_var=10, 
-             color_var = input$colorExplore, title='mean-variance', labels=labelsmean.variance, source='mean.variance', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$df)
+             color_var = input$colorExplore, title='mean-variance', labels=labelsmean.variance, source='mean.variance', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$axes)
   p=event_register(p,"plotly_restyle")
   p
   
@@ -1267,7 +1488,7 @@ output$pcmaximin=renderPlotly({
   }
   
   p=par_coords(data=data, n_var=10, 
-             color_var = input$colorExplore, title='maximin (worst case SOW)', labels=labelsmaximim, source='maximin', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$df)
+             color_var = input$colorExplore, title='maximin (worst case SOW)', labels=labelsmaximim, source='maximin', policy_ID = tableSelectExplore$constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$axes)
   p=event_register(p,"plotly_restyle")
   p
   
@@ -2217,119 +2438,6 @@ sliderInput("KSnSample", label = "Number of policies", min = 2, max=463, value=4
 actionButton("KSApply", label = "Subset policies")
 
 ```
-
-### Satisficing thresholds
-
-```{r satisficing function}
-
-obj_all=read.table('objectives_all463.txt') # load data for calculating robustness
-
-vol_index=which(colnames(obj_all) %in% c('LB.Shortage.Volume',"LB.Shortage.Volume.Policy"))
-obj_all[,vol_index]=obj_all[,vol_index]/1000 # convert to KAF
-
-SOW_500_300_100=readRDS("SOW ensemble 500_300_100.rds") # list of SOW ensembles
-SOW_id=sort(SOW_500_300_100[[2]]$model) # SOW IDs of the 300 member SOW ensemble
-
-```
-
-
-```{r user defined satisficing UI}
-
-h4("Select one or more objectives")
-selectInput("satisObj",label=NULL, multiple = T, choices=colnames(obj_all)[-c(1,2)])
-
-h4('Enter thresholds separated by commas')
-textInput("satisThresh", label=NULL, placeholder='eg: 10,600', width="200px")
-
-div(style="margin-bottom:20px") # adds padding between buttons
-
-h4('Aggregate objectives?')
-prettyToggle("AggTF", value=FALSE, label_on = "Yes", label_off = "No", width = '200px', bigger=T)
-
-div(style="margin-bottom:20px") # adds padding between buttons
-
-actionButton("CalcSatis", label="Calculate")
-
-
-```
-
-```{r calculate satisficing}
-
-satisdf=reactiveValues(df=metrics.list_n500$satisficing, trigger=0) # establish reactive object to store satisficing dataframe
-
-observeEvent(input$CalcSatis, {
-  
-  showNotification('Calculating', type='message', duration=7)
-  
-  satisdf$df=NULL # reset satisdf
-  
-  # change the ensemble based on user input
-  if (input$SOWensemble=="cLHS n300"){
-    obj=dplyr::filter(obj, TraceNumber %in% SOW_id) # filter CRSS objectives output to the 300 SOW
-  } else {
-    obj=obj_all
-  }
-  
-  # names=input$satisObj
-  # cat(file=stderr(), 'names:', names, "\n")
-  
-  # convert thresholds to numeric
-  thresholds=unlist(lapply(str_split(input$satisThresh, ','), as.integer))
-  # check=input$satisThresh
-  # cat(file=stderr(), 'thresholds:', thresholds, "\n")
-  
-  if(input$AggTF == TRUE){
-    # calculate satisficing
-    df=satisficing(data=obj, objectives = input$satisObj, thresholds = thresholds)
-    colnames(df)[2]=paste0('satisficing.',input$satisObj)
-    
-    add=satisficing.deviation(data=obj, objectives = input$satisObj, thresholds = thresholds)[,2]
-    df=cbind(df,add)
-    colnames(df)[3]=paste0("sat.dev.",input$satisObj)
-    
-  } else {
-    # for loop to calculate satisficing for each objective
-    
-      for (i in 1:length(input$satisObj)){ # satisficing
-        
-        if(i==1){# initialize df
-          df=satisficing(data=obj, objectives = input$satisObj[i], thresholds=thresholds[i])
-          colnames(df)[2]=paste0('satisficing.',input$satisObj[i])
-        } else { #
-          add=satisficing(data=obj, objectives = input$satisObj[i], thresholds=thresholds[i])[,2]
-          df=cbind(df,add)
-          colnames(df)[ncol(df)]=paste0('satisficing.',input$satisObj[i])
-          
-        }
-        
-      } # end satisficing
-    
-      for (i in 1:length(input$satisObj)){ #satisficing deviation
-        
-        add=satisficing.deviation(data=obj, objectives = input$satisObj[i], thresholds = thresholds[i])[,2]
-        df=cbind(df,add)
-        colnames(df)[ncol(df)]=paste0("sat.dev.",input$satisObj[i])
-        
-      }
-    
-  }
-  
-  satisdf$df=df # update satisdf
-#   check=dim(satisdf$df)
-# cat(file=stderr(), 'dimensions:', check, "\n") # prints dimension to R console
-
-    metrics.list$l$satisficing=df # update both metrics list. prep$satisficing will update because of dependency
-    metrics_4app$l$satisficing=df
-    
-    satisdf$trigger=1 # triggers subsetting of prep$satisficing by KS$index
-
-  showNotification('Satisficing thresholds updated', type='message', duration=7)
-  
-})
-
-
-```
-
 
 
 Column {.tabset .tabset-fade data-width=400}

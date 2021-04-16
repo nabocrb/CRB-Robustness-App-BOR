@@ -330,6 +330,12 @@ get_brush_policyID=function(ranges, prep_df, page="baseline"){
     return(c('None',a,b))
   }
 
+get_satisficing_options=function(tradeoff_df="satisficing", df_list=metrics_4app$l){
+  a=colnames(df_list[[tradeoff_df]])
+  b=colnames(add_to_tradeoff) # use to add to filter option drop down menu
+  return(c('None',a,b))
+}
+
 
 ####################### Satisficing function ###############################
 ###################################################################
