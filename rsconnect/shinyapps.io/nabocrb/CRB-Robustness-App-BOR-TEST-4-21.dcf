@@ -1,0 +1,12 @@
+name: CRB-Robustness-App-BOR-TEST-4-21
+title: CRB-Robustness-App-BOR-TEST-4-21
+username:
+account: nabocrb
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 4009016
+bundleId: 4501707
+url: https://nabocrb.shinyapps.io/CRB-Robustness-App-BOR-TEST-4-21/
+when: 1619035124.84529
+asMultiple: FALSE
+asStatic: FALSE

@@ -16,6 +16,8 @@ library(nsga2R)
 library(DT) # for sortable data table
 library(openxlsx)
 library(prospectr) # for Kennard Stone sampling
+library(shinyBS) # for tooltips
+library(schoolmath) # is.even
 
 
 ####################################### wrapper to plot_ly parallel coordinates #################################
@@ -56,7 +58,7 @@ par_coords=function(data, max_cols=NULL, n_var, color_var, title='User selected 
     dimensions[[i]][['label']]=labels[i]
     dimensions[[i]][['values']]=data[[i]]
     
-    if (colnames(data)[i]=='policy'){
+    if (colnames(data)[i]=='ID'){
       dimensions[[i]][['constraintrange']]=policy_ID
     }
     
@@ -99,8 +101,8 @@ DV_plot=function(long.data=long_data, wide.data=wide_data, metric= robustness_me
   
   # filter for chosen policies
   filter.long=dplyr::filter(long.data, policy %in% to_plot)
-  filter.wide=dplyr::filter(wide.data, policy %in% to_plot)
-  filter.metric=dplyr::filter(metric, policy %in% to_plot)
+  filter.wide=dplyr::filter(wide.data, ID %in% to_plot)
+  filter.metric=dplyr::filter(metric, ID %in% to_plot)
   
   # get rank, append to data frames
   
@@ -117,7 +119,7 @@ DV_plot=function(long.data=long_data, wide.data=wide_data, metric= robustness_me
   
   n_policies=nrow(filter.wide)
   
-  bar_plot=ggplot(mapping=aes(label1=policy))+
+  bar_plot=ggplot()+
     geom_bar(data=filter.long, aes(fill=Tier, x=rank, y=delta), position = 'stack', stat = 'identity', color='darkgrey')+
     geom_text(data=filter.long, aes(x=rank, y= elevation, label=v_lab),color='black', nudge_y = -4, size=text_size, check_overlap = T)+
     geom_text(data=filter.wide, aes(x=rank, y= policy_lab_y, label=policy_lab), nudge_y = 4, size=text_size, check_overlap = T)+
@@ -131,20 +133,23 @@ DV_plot=function(long.data=long_data, wide.data=wide_data, metric= robustness_me
   bar_plot=addSmallLegend(bar_plot)
   # ggtitle(paste(metric_label, 'rank for selected policies', sep=' '))+
   
-  int_plot=ggplotly(p=bar_plot, tooltip = c('policy', 'rank','elevation', 'volume')) # convert ggplot to interactive plotly html
+  int_plot=ggplotly(p=bar_plot, tooltip = c('rank','elevation', 'volume'), dynamicTicks=T, originalData=F) # convert ggplot to interactive plotly html
   # add legend title in correct location
   int_plot=int_plot %>%   layout(legend = list(
-    orientation = "v", title=list(text=" Tier ")
+    orientation = "v", title=list(text=" Tier "))
   )
-  )
+  
   int_plot_2y=int_plot %>%
     add_lines(data=filter.metric, x=~sort(filter.metric$rank), y=~sort(filter.metric[[metric_label]], decreasing = decreasing), yaxis='y2',
               inherit=FALSE, showlegend=FALSE, line=list(color='purple', width=2, dash='dash')) %>%
     layout(yaxis2 = list(overlaying = "y", side = "right",
                          tickfont = list(color = 'purple', size=10), color = 'purple',
                          title = metric_label),
-           legend = list(x = 1.05, y = 0.95))
+           legend = list(x = 1.05, y = 0.95), xaxis=list(range=c(0, min((n_policies+1),20))), yaxis=list(range=c(885,1110))
+           )
   
+  int_plot_2y$x$layout$xaxis$autorange = FALSE # need to tell plotly to NOT change the axis range to fit all data
+  int_plot_2y$x$layout$yaxis$autorange = FALSE
   return(int_plot_2y)
   
   
@@ -232,13 +237,13 @@ manual_filters=function(ID_key, unique_thresh_ID, dataframe, page="baseline"){
     a=intersect(rows[[1]],rows[[2]])
     b=intersect(a, rows[[3]])
     
-    ID=function_df$r[['policy']][b]
+    ID=function_df$r[['ID']][b]
     log=manual_log$input
     return(list(ID, log))
     # return(ID)
   } else { # user selected specific policies to view
     
-    log_vec[1:6]=c(page, "policy", "manual", NA, NA,input[[ID_key]])
+    log_vec[1:6]=c(page, "ID", "manual", NA, NA,input[[ID_key]])
     
     if (length(log_vec)>0){
       manual_log$input=rbind(manual_log$input, log_vec)
@@ -317,7 +322,7 @@ get_brush_policyID=function(ranges, prep_df, page="baseline"){
     }
     keep <- keep & keep_var
   }
-  policyID=prep_df[['policy']][keep]
+  policyID=prep_df[['ID']][keep]
   return(list(policyID, brush_log$log))
 }
 
@@ -351,7 +356,7 @@ satisficing=function(data=obj, objectives=c('LB.Shortage.Volume', 'Mead.1000', '
   
   metric.df=matrix(NA, nrow=nrow, ncol=ncol)
   metric.df=data.frame(metric.df)
-  colnames(metric.df)=c('policy', 'satisficing')
+  colnames(metric.df)=c('ID', 'satisficing')
   metric.df[,1]=unique(data[, policy_ID_column])
   
   policy_iter=unique(data[, policy_ID_column]) # id of policies to loop through
@@ -509,7 +514,7 @@ HurwiczOP=function(data=obj, objectives=c('LB.Shortage.Volume', 'Mead.1000', 'Po
   
   metric.df=matrix(NA, nrow=nrow, ncol=ncol)
   metric.df=data.frame(metric.df)
-  colnames(metric.df)=c('policy', objectives)
+  colnames(metric.df)=c('ID', objectives)
   metric.df[,1]=unique(data[, policy_ID_column])
   
   policy_iter=unique(data[, policy_ID_column]) # id of policies to loop through
