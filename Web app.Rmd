@@ -3,9 +3,13 @@ title: "CRB robustness tradeoffs"
 output: 
   flexdashboard::flex_dashboard:
     source_code: "https://github.com/nabocrb/CRB-Robustness-App-BOR"
+    theme: spacelab
     
 runtime: shiny
 ---
+
+
+
 
 ```{r, setup, include=FALSE}
 
@@ -217,35 +221,86 @@ filterLog=reactiveValues(global=df.initialize, local=df.initialize)
 
 ```
 
+```{r, satisficing calcs data}
+obj_all=read.table('objectives_all463.txt') # load data for calculating robustness
+
+vol_index=which(colnames(obj_all) %in% c('LB.Shortage.Volume',"LB.Shortage.Volume.Policy", "Max.Annual.LB.Shortage"))
+obj_all[,vol_index]=obj_all[,vol_index]/1000 # convert to KAF
+obj_all[["Powell.WY.Release"]]=obj_all[["Powell.WY.Release"]]/(10^6) # convert to MAF
+
+
+SOW_500_300_100=readRDS("SOW ensemble 500_300_100.rds") # list of SOW ensembles
+SOW_id=sort(SOW_500_300_100[[2]]$model) # SOW IDs of the 300 member SOW ensemble
+
+```
+
+
 ```{r, settings Modal}
 
 bsModal(id="modalSettings" ,title= "global plot settings", trigger="settingsOptimization",
-        
-h4('Parallel coordinates color scale'),
+
+h3("Parallel coordinates plot options"),        
+hr(), # add a line
+h5('Color scale'),
 selectInput("ColorScale", label=NULL, selected='blue-red', choices=c('blue-red', 'Viridis','Picnic', 'Rainbow', 'Portland', 'Blackbody', 'Cividis', "YlGnBu", "Jet", "Hot", "Earth")),
 bsTooltip(id="ColorScale", title="change the color gradient used in the parallel coordinates plot", placement = "right", options=list(container="body") ),
 # bsPopover(id="ColorScale", title="test", content="change the color gradient used in the parallel coordinates plot")
 
-h4('Reverse color scale?'),
+h5('Reverse color scale?'),
 prettyToggle("ReverseTF", label_on='   Yes   ', label_off='No', value=FALSE, width = '200px', bigger = T),
 bsTooltip(id="ReverseTF", title="reverse the direction of parallel coordinates color scale. e.g: change blue-red to red-blue", placement = "right", options=list(container="body")),
 
-h4('Keep or Remove policies from par coords?'),
+h5('Keep or Remove policies?'),
 prettyToggle("KeepPoliciesTF", label_on='Keep', label_off='Remove', value=FALSE, width = '200px', bigger=TRUE),
 bsTooltip(id="KeepPoliciesTF", title="Should policies be removed from the parallel coordinates plot when they are filtered out? Note that policies are always removed from the decision variable plot. WARNING: When set to KEEP, policies removed from the global filter are shown in transparent gray in the parallel coordinates plot. Clicking on the ID axis will cause all policies to be shown in color.", placement = "right", options=list(container="body")),
 
-h4("Maintain Par Coords axes ranges of all policies?"),
+h5("Maintain axes ranges of all policies?"),
 prettyToggle("MaintainAxes", label_on = "Yes", label_off="No", value=TRUE, width="200px", bigger = TRUE),
 bsTooltip(id="MaintainAxes", title="Should the axes in parallel coordinates plots use the maximum ranges from all 463 policies, or should the range shrink as policies are removed?", placement = "right", options=list(container="body")),
 
-h4('Select SOW ensemble'),
+h5("Show or hide ID and front axes?"),
+prettyToggle(inputId = "ShowID_Front", label_on = "Show", label_off = "Hide", value = TRUE, width="200px", bigger = TRUE),
+bsTooltip(id="ShowID_Front", title = "Should the ID and front axes in the parallel coordinates plot be shown? Hiding these axes is useful for visualizing Pareto-dominance. CAUTION: when set to Hide, table selections are disabled, and -Keep or Remove policies from par coords- is ineffective when set to Keep.", placement = "right", options=list(container="body")), 
+
+h4("label options"),
+sliderInput(inputId = "titlesize", label= "Title font size", min=1, max=30, value=24),
+sliderInput(inputId = "labelsize", label = "Label font size", min=1, max=30, value=13),
+sliderInput(inputId = "labelangle",label = "Axes label angle from horizontal", min=-90, max=90, value=-10),
+
+splitLayout(cellWidths = c(220,20),h4("image download options"), circleButton(inputId = "imageHelp", icon=icon("info-circle"), size = "xs")),
+
+bsTooltip(id="imageHelp", title = "Set height, width, and other parameters when downloading the parallel coordinates as an image. The default height and width produce a .jpeg or .png with 960 dpi that scales nicely on 8.5 x 11 inch paper. The -Label and title scale- may need increased if larger images are downloaded. If .pdf is desired, you can download as .svg then use free online applications to convert from .svg to .pdf. Use these options in conjunction with the label options above to produce quality images.", placement = "right", options=list(container="body")),
+
+splitLayout(cellWidths = c(300,300), 
+            sliderInput(inputId = "height",label = "Image height (px)",min = 100, max=1000, value = 500, width=250, step = 50),
+            sliderInput(inputId = "width",label = "Image width (px)",min = 250, max=3000, value = 1000, width=250, step=50)
+            
+            ),
+
+
+splitLayout(cellWidths = c(300,300), 
+            
+            sliderInput(inputId = "scale",label = "Label and title scale",min =1, max=17, value = 10, width=250),
+            radioButtons(inputId = "format", label = "Image format", choices = c("jpeg", "png", "svg", "webp"), selected = "jpeg", width=250, inline=TRUE)
+            
+            ),
+
+
+h3("Decision variable plot options"),
+hr(), # add line
+sliderInput(inputId = "DVplotLabelSize", label = "Label font size", min=1, max=5, value=2.7, step = 0.1),
+bsTooltip(id="DVplotLabelSize", title = "Change the font size of the ID and shortage volume labels inside of the plot.", placement = "right", options=list(container="body")),
+
+
+h3('Select SOW ensemble'),
+hr(), # add line
 selectInput('SOWensemble', label=NULL, selected='cLHS n500', choices=c('cLHS n500', 'cLHS n300')),
 bsTooltip(id="SOWensemble", title="Robustness metrics have been calculated using 500 states of the world (SOW) and 300 SOW. The Rank Correlation page demonstrates that the results are largely the same for both ensembles. However, you can choose which ensemble is shown in parallel coordinates and decision variable plots.", options=list(container="body"), placement = "right"),
 
 
 
-h4("Subset policies with Kennard Stone sampling"),
-
+h3("Subset policies with Kennard Stone sampling"),
+hr(), # add line
 selectInput("KSmetric", label="Metric", choices = c("Decision Variables", "Optimization objectives"), selected = "Decision Variables"),
 bsTooltip(id="KSmetric", title="You can select a subset of policies to view in the parallel coordinates and decision variable plots using the Kennard-Stone algorithm, which identifies the k most diverse policies. Select if diversity is based on decision variables or optimization objectives, then choose k, the number of policies. The policies will be sampled from policies in the global filter.", options=list(container="body"), placement = "right"),
 
@@ -273,6 +328,12 @@ observeEvent(modalTrigger$Explore | modalTrigger$Custom, {
 
   
 }, ignoreInit = T)
+
+
+delayFontSlider=reactive({ # slow down the speed at which sliderInput for DV Label size causes plot to rerender
+  input$DVplotLabelSize
+}
+) %>% debounce(1000) # 1000 milliseconds, or 1 second.
 
 ```
 
@@ -362,7 +423,10 @@ Column {.sidebar data-width=225}
 
 ```{r, Optimization UI}
 
-h3('Local filters')
+splitLayout(cellWidths = c(130, 50), h3('Local filters'), circleButton(inputId = "LFHelpOptimization", icon = icon("info-circle"), size = "xs") )
+
+bsTooltip(id = "LFHelpOptimization",title = "Local filters are saved only to the current page. To save these filters and apply additional filters on other pages, select Save Filters Globally.", options=list(container="body"), placement = "right" )
+
 dropdownButton(circle=F, label='manual filters', width=190,
 selectInput("VarOptimization1", label = "Filter 1:",
             choices = get_options('optimization'), selected = 'None'),
@@ -382,12 +446,14 @@ selectInput("IneqOptimization3", label = "Inequality 3:",
             choices = c('<', '>'), selected = '<'),
 textInput('ThreshOptimization3', label= 'Threshold 3:', value='', placeholder='10'),
 
-textInput("IDOptimization", label='Select policy IDs', placeholder='eg: 292,54')         
+textInput("IDOptimization", label='Select policy IDs', placeholder='eg: 292,54'),
+
+actionButton('manualfilterOptimization',label='save manual filters', width=170)
                
                )
 
-div(style="margin-bottom:20px") # adds padding between buttons
-actionButton('manualfilterOptimization',label='save manual filters', width=190)
+
+
 div(style="margin-bottom:5px") # adds padding between buttons
 actionButton('brushfilterOptimization',label='save brush filters', width=190)
 div(style="margin-bottom:5px") # adds padding between buttons
@@ -406,22 +472,26 @@ div(style="margin-bottom:5px") # adds padding between buttons
 actionButton('localresetOptimization',label='reset local filters', width=190)
 div(style="margin-bottom:20px") # adds padding between buttons
 
-h3('Global filters')
+splitLayout(cellWidths = c(150, 50), h3('Global filters'), circleButton(inputId = "GFHelpOptimization", icon = icon("info-circle"), size = "xs") )
+
+bsTooltip(id = "GFHelpOptimization",title = "Global filters are honored on other pages. For example, filter policies by thresholds in Optimization objectives, save globally, then apply additional filters on the Robustness metrics page.", options=list(container="body"), placement = "right" )
+
 actionButton('global_filterOptimization', label='save filters globally', width=190)
 div(style="margin-bottom:5px") # adds padding between buttons
 actionButton('resetOptimization',label='reset global filters', width=190)
 
 
 h3('Plot variables')
+
 selectInput('colorOptimization', label='ParCoords color variable', choices=c(get_options('optimization'),'global.filter'), selected = 'Mead.1000', width=190)
 
 selectInput('xAxisOptimization', label = 'Metric for ranking', choices=get_options('optimization')[-1], selected='Mead.1000', width=190)
 
 div(style="margin-bottom:20px") # adds padding between buttons
 
-downloadButton("download_b",label="Download filtered policies", width=190)
 
-downloadHandler(filename="optimization filtered policies.xlsx", content=function(file) {
+splitLayout(cellWidths = c(150, 50),
+            downloadHandler(filename="optimization filtered policies.xlsx", content=function(file) {
   
   # remove empty rows in the log objects
   data=filterLog$global
@@ -432,17 +502,12 @@ downloadHandler(filename="optimization filtered policies.xlsx", content=function
   data.list=list("policies"=select(filter.optimization(), -starts_with("X")), "global.filters"=global, "local.filters"=local)
   write.xlsx(data.list, file)
 
-})
+}),
+            circleButton(inputId= "settingsOptimization", icon=icon("chart-line"), status = "primary")
+            )
 
-div(style="margin-bottom:60px") # adds padding between buttons
+bsTooltip(id="settingsOptimization",title="global plot settings", options=list(container="body"), placement = "right")
 
-fluidRow(column(12, div(circleButton(inputId= "settingsOptimization", icon=icon("chart-line"), status = "primary")
-, style="float: right")))
-bsTooltip(id="settingsOptimization",title="global plot settings", options=list(container="body"), placement = "left")
-
-
-# actionButton(inputId= "settings", label= "", icon=icon("chart-line") )
-# dropdownButton(icon=icon("chart-line"), circle=T, right=T, up=T)
 
 ```
 
@@ -677,19 +742,6 @@ Robustness metrics {data-orientation=rows}
 Column{.sidebar data-width=225}
 -------------------------------
 
-```{r, satisficing calcs data}
-obj_all=read.table('objectives_all463.txt') # load data for calculating robustness
-
-vol_index=which(colnames(obj_all) %in% c('LB.Shortage.Volume',"LB.Shortage.Volume.Policy", "Max.Annual.LB.Shortage"))
-obj_all[,vol_index]=obj_all[,vol_index]/1000 # convert to KAF
-obj_all[["Powell.WY.Release"]]=obj_all[["Powell.WY.Release"]]/(10^6) # convert to MAF
-
-
-SOW_500_300_100=readRDS("SOW ensemble 500_300_100.rds") # list of SOW ensembles
-SOW_id=sort(SOW_500_300_100[[2]]$model) # SOW IDs of the 300 member SOW ensemble
-
-```
-
 ```{r, Exploration UI}
 
 df_names=names(metrics_4app_n500)
@@ -718,7 +770,7 @@ renderUI({
 renderUI({
   req(name$n=="satisficing")
 
-  dropdownButton(label='Satisficing calcs', circle = F, width = 220,
+  dropdownButton(inputId = "satisficingDropDown",label='Satisficing calcs', circle = F, width = 220,
 
   selectInput("satisObj",label="Select objective(s)", multiple = T, choices=colnames(obj_all)[-c(1,2)]),
 
@@ -783,11 +835,15 @@ renderUI({
   renderUI({
     req(length(input$satisObj) >=1)
     actionButton("CalcSatis", label="Calculate")
-  })
+  }),
+  
+  bsTooltip(id="satisficingDropDown", title="Satisficing and satisficing deviation metrics require user defined performance thresholds to delineate acceptable vs. unacceptable performance. Use this dropdown to select optimization objectives and corresponding performance thresholds.", options=list(container="body"), placement = "right")
 
                    )
 
 })
+
+
 
 # get options for manual filters, par coords color var, and x axis
 observe({
@@ -800,7 +856,13 @@ observe({
   }
 })
 
-h3('Local filters')
+
+splitLayout(cellWidths = c(130, 50), h3('Local filters'), circleButton(inputId = "LFHelpExplore", icon = icon("info-circle"), size = "xs") )
+
+bsTooltip(id = "LFHelpExplore",title = "Local filters are saved only to the current page. Further, on the Robustness metrics page, local filters are only saved to each tab for each class of robustness metrics. To save these filters and apply additional filters on other pages or tabs, select Save Filters Globally.", options=list(container="body"), placement = "right" )
+
+
+
 dropdownButton(label='manual filters', circle = F, width = 190,
                
 renderUI({
@@ -862,16 +924,14 @@ renderUI({
 renderUI({
   req(name$n)
   textInput("IDExplore", label='Select policy IDs', placeholder='eg: 292,54')
+}),
+
+renderUI({
+  req(name$n)
+  actionButton('manualfilterExplore', 'save manual filters', width=170)
 })
 
 )
-
-
-div(style="margin-bottom:5px") # adds padding between buttons
-renderUI({
-  req(name$n)
-  actionButton('manualfilterExplore', 'save manual filters', width=190)
-})
 
 div(style="margin-bottom:5px") # adds padding between buttons
 
@@ -904,7 +964,10 @@ renderUI({
 div(style="margin-bottom:10px") # adds padding between buttons
 
 
-h3("Global filters")
+splitLayout(cellWidths = c(150, 50), h3('Global filters'), circleButton(inputId = "GFHelpExplore", icon = icon("info-circle"), size = "xs") )
+
+bsTooltip(id = "GFHelpExplore",title = "Global filters are honored on other pages. For example, filter policies by thresholds in Satisficing-related robustness metrics, save globally, then apply additional filters on the Maximin tab or Optimization objectives page.", options=list(container="body"), placement = "right" )
+
 renderUI({
   req(name$n)
   actionButton('global_filterExplore', label='save filters globally', width=190)
@@ -933,11 +996,9 @@ renderUI({
   selectInput('xAxisExplore', label = 'Metric for ranking', choices=Explore_all$options, selected=Explore_all$options[1], width=190)
 })
 
-
-downloadButton("download_Explore",label="Download filtered policies")
-
-
-downloadHandler(filename="Exploration filtered policies.xlsx", content=function(file) {
+splitLayout(cellWidths = c(150,50),
+            
+            downloadHandler(filename="Exploration filtered policies.xlsx", content=function(file) {
   
     # remove empty rows in the log objects
   data=filterLog$global
@@ -948,13 +1009,12 @@ downloadHandler(filename="Exploration filtered policies.xlsx", content=function(
   data.list=list("policies"=select(filter.Explore(), -starts_with("X")), "global.filters"=global, "local.filters"=local)
   write.xlsx(data.list, file)
 
-})
+}), 
+circleButton(inputId= "settingsExplore", icon=icon("chart-line"), status = "primary")
 
-div(style="margin-bottom:30px") # adds padding between buttons
+            )
 
-fluidRow(column(12, div(circleButton(inputId= "settingsExplore", icon=icon("chart-line"), status = "primary")
-, style="float: right")))
-bsTooltip(id="settingsExplore",title="global plot settings", options=list(container="body"), placement = "left")
+bsTooltip(id="settingsExplore",title="global plot settings", options=list(container="body"), placement = "right")
 
 observeEvent(input$settingsExplore, {modalTrigger$Explore=1+modalTrigger$Explore}, ignoreInit = T)
 
@@ -1345,7 +1405,7 @@ output$pcSatisficing=renderPlotly({
   
   
   p=par_coords(data=data, n_var=nvar, 
-             color_var = input$colorExplore, title=satisdf$title, labels=colnames(Explore_all$df)[1:nvar], max_cols = max_cols, source='satisficing', policy_ID = Explore_all$ID_constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$axes)
+             color_var = input$colorExplore, title=satisdf$title, labels=colnames(Explore_all$df)[1:nvar], max_cols = max_cols, source='satisficing', policy_ID = Explore_all$ID_constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$axes, show_ID_front=input$ShowID_Front, labelangle=input$labelangle, titlesize=input$titlesize)
   p=event_register(p,"plotly_restyle")
   p
   
@@ -1379,7 +1439,7 @@ output$pcRegret.From.Best=renderPlotly({
   
   
   p=par_coords(data=data, n_var=10, 
-             color_var = input$colorExplore, title='Regret from best', labels=labelsregret.from.best, source='regret.from.best', policy_ID = Explore_all$ID_constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$axes)
+             color_var = input$colorExplore, title='Regret from best', labels=labelsregret.from.best, source='regret.from.best', policy_ID = Explore_all$ID_constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$axes, show_ID_front=input$ShowID_Front, labelangle=input$labelangle, titlesize=input$titlesize)
   p=event_register(p,"plotly_restyle")
   p
   
@@ -1413,7 +1473,7 @@ output$pcPercent.Deviation=renderPlotly({
   }
   
   p=par_coords(data=data, n_var=10, 
-             color_var = input$colorExplore, title='Percent deviation from optimization', labels=labelsPercent.Deviation, source='percent.deviation', policy_ID = Explore_all$ID_constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$axes)
+             color_var = input$colorExplore, title='Percent deviation from optimization', labels=labelsPercent.Deviation, source='percent.deviation', policy_ID = Explore_all$ID_constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$axes, show_ID_front=input$ShowID_Front, labelangle=input$labelangle, titlesize=input$titlesize)
   p=event_register(p,"plotly_restyle")
   p
   
@@ -1447,7 +1507,7 @@ output$pcLaplaces.PIR=renderPlotly({
   
   
   p=par_coords(data=data, n_var=10, 
-             color_var = input$colorExplore, title='Laplaces Principle of Insufficient Reason (mean)', labels=labelsLaplaces.PIR, source='Laplaces.PIR', policy_ID = Explore_all$ID_constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$axes)
+             color_var = input$colorExplore, title='Laplaces Principle of Insufficient Reason (mean)', labels=labelsLaplaces.PIR, source='Laplaces.PIR', policy_ID = Explore_all$ID_constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$axes, show_ID_front=input$ShowID_Front, labelangle=input$labelangle, titlesize=input$titlesize)
   p=event_register(p,"plotly_restyle")
   p
   
@@ -1527,7 +1587,7 @@ output$pcHurwicz.OP=renderPlotly({
   nvar=if("front" %in% colnames(data)) {10} else {9} # 10 axes if front is included, 9 otherwise
   
   p=par_coords(data=data, n_var=nvar, 
-             color_var = input$colorExplore, title=paste0('Hurwicz Optimism-Pessimism: best-case weight = ', weight, " , worst-case weight = ", (1-weight) ), labels=labelsHurwicz.OP, source='Hurwicz.OP', policy_ID = Explore_all$ID_constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$axes)
+             color_var = input$colorExplore, title=paste0('Hurwicz Optimism-Pessimism: best-case weight = ', weight, " , worst-case weight = ", (1-weight) ), labels=labelsHurwicz.OP, source='Hurwicz.OP', policy_ID = Explore_all$ID_constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$axes, show_ID_front=input$ShowID_Front, labelangle=input$labelangle, titlesize=input$titlesize)
   p=event_register(p,"plotly_restyle")
   p
   
@@ -1562,7 +1622,7 @@ output$pcmean.variance=renderPlotly({
   }
   
   p=par_coords(data=data, n_var=10, 
-             color_var = input$colorExplore, title='mean-variance', labels=labelsmean.variance, source='mean.variance', policy_ID = Explore_all$ID_constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$axes)
+             color_var = input$colorExplore, title='mean-variance', labels=labelsmean.variance, source='mean.variance', policy_ID = Explore_all$ID_constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$axes, show_ID_front=input$ShowID_Front, labelangle=input$labelangle, titlesize=input$titlesize)
   p=event_register(p,"plotly_restyle")
   p
   
@@ -1597,7 +1657,7 @@ output$pcmaximin=renderPlotly({
   }
   
   p=par_coords(data=data, n_var=10, 
-             color_var = input$colorExplore, title='maximin (worst case SOW)', labels=labelsmaximim, source='maximin', policy_ID = Explore_all$ID_constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$axes)
+             color_var = input$colorExplore, title='maximin (worst case SOW)', labels=labelsmaximim, source='maximin', policy_ID = Explore_all$ID_constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$axes, show_ID_front=input$ShowID_Front, labelangle=input$labelangle, titlesize=input$titlesize)
   p=event_register(p,"plotly_restyle")
   p
   
@@ -1699,7 +1759,9 @@ observe({ # this observer will update metrics.list.react$l if the ensemble is ch
 
 
 # metric selection drop down
-h3('Select dimensions')
+splitLayout(cellWidths = c(130, 50), h3('Select axes'), circleButton(inputId = "AxesHelp", icon = icon("info-circle"), size = "xs") )
+
+bsTooltip(id = "AxesHelp",title = "Use the drop down menu below to select optimization objectives, robustness metrics, or decision variables to plot in parallel coordinates.", options=list(container="body"), placement = "right" )
 dropdownButton(
                
   selectInput("type1", label = "metric 1 type:",
@@ -1842,7 +1904,7 @@ renderUI({
 actionButton('apply', 'apply selected metrics'),
 
 
-width=190, label='select metrics', circle = F
+width=220, label='select metrics', circle = F
   
   
 )
@@ -1859,8 +1921,12 @@ custom_options=reactive({
   all
   })
 
-h3('Local filters')
-dropdownButton(label='manual filters', circle = F, width = 190,
+splitLayout(cellWidths = c(130, 50), h3('Local filters'), circleButton(inputId = "LFHelpCustom", icon = icon("info-circle"), size = "xs") )
+
+bsTooltip(id = "LFHelpCustom",title = "Local filters are saved only to the current page. To save these filters and apply additional filters on other pages, select Save Filters Globally.", options=list(container="body"), placement = "right" )
+
+
+dropdownButton(label='manual filters', circle = F, width = 220,
                
 renderUI({
   req(input$apply)
@@ -1921,16 +1987,14 @@ renderUI({
 renderUI({
   req(input$apply)
   textInput("IDCustom", label='Select policy IDs', placeholder='eg: 292,54')
-})
+}),
 
-)
-
-
-div(style="margin-bottom:20px") # adds padding between buttons
 renderUI({
   req(input$apply)
   actionButton('manualfilterCustom', 'save manual filters', width = 190)
 })
+
+)
 
 div(style="margin-bottom:5px") # adds padding between buttons
 
@@ -1962,7 +2026,9 @@ renderUI({
 })
 div(style="margin-bottom:20px") # adds padding between buttons
 
-h3('Global filters')
+splitLayout(cellWidths = c(150, 50), h3('Global filters'), circleButton(inputId = "GFHelpCustom", icon = icon("info-circle"), size = "xs") )
+
+bsTooltip(id = "GFHelpCustom",title = "Global filters are honored on other pages. For example, filter policies by thresholds in Optimization objectives, save globally, then apply additional filters on the Robustness metrics page.", options=list(container="body"), placement = "right" )
 
 renderUI({
   req(input$apply)
@@ -1997,11 +2063,9 @@ renderUI({
   selectInput('xAxisCustom', label = 'Metric for ranking', choices=custom_options()[-1], selected=custom_options()[1], width = 190)
 })
 
-
-downloadButton("download_Custom",label="Download filtered policies")
-
-
-downloadHandler(filename="Custom filtered policies.xlsx", content=function(file) {
+splitLayout(cellWidths = c(150,50), 
+        
+  downloadHandler(filename="Custom filtered policies.xlsx", content=function(file) {
 
   # remove empty rows in the log objects
   data=filterLog$global
@@ -2017,13 +2081,13 @@ downloadHandler(filename="Custom filtered policies.xlsx", content=function(file)
   data.list=list("policies"=df, "global.filters"=global, "local.filters"=local)
   write.xlsx(data.list, file)
   
-})
+    }),
+    
+  circleButton(inputId= "settingsCustom", icon=icon("chart-line"), status = "primary")
+  
+            )
 
-div(style="margin-bottom:50px") # adds padding between buttons
-
-fluidRow(column(12, div(circleButton(inputId= "settingsCustom", icon=icon("chart-line"), status = "primary")
-, style="float: right")))
-bsTooltip(id="settingsCustom",title="global plot settings", options=list(container="body"), placement = "left")
+bsTooltip(id="settingsCustom",title="global plot settings", options=list(container="body"), placement = "right")
 
 observeEvent(input$settingsCustom, {modalTrigger$Custom=1+modalTrigger$Custom}, ignoreInit = T)
 
@@ -2306,7 +2370,7 @@ output$pcCustom=renderPlotly({
     }
     
     
-          custom=par_coords(data=data, n_var=nvar()+1, color_var = color_custom$c, title='user selected metrics', max_cols = max_id(), source='pcoordsCustom', policy_ID = ID_constraints, colorbarTitle = color_custom$c, axes_data=axes_data)
+          custom=par_coords(data=data, n_var=nvar()+1, color_var = color_custom$c, title='user selected metrics', max_cols = max_id(), source='pcoordsCustom', policy_ID = ID_constraints, colorbarTitle = color_custom$c, axes_data=axes_data, show_ID_front=input$ShowID_Front)
 
 
   } else {
@@ -2327,7 +2391,7 @@ output$pcCustom=renderPlotly({
     # cat(file=stderr(), 'custom columns:', colnames, "\n") # prints dimension to R console
     # 
     custom=par_coords(data=data, n_var=nvar(), color_var = color_custom$c, title='user selected metrics', max_cols = max_id(),
-             source='pcoordsCustom', policy_ID = ID_constraints, colorbarTitle = color_custom$c, axes_data=axes_data)
+             source='pcoordsCustom', policy_ID = ID_constraints, colorbarTitle = color_custom$c, axes_data=axes_data, show_ID_front=input$ShowID_Front)
   }
   
 
@@ -2395,14 +2459,16 @@ observe({
 ```
 
 
-Rank correlation{data-orientation=rows}
+SOW ensemble rank correlation {data-navmenu="Sensitivity analysis" data-orientation=rows}
 ========================================
 
 Column{.sidebar data-width=225}
 --------------------------------
 
 ```{r, rank cor UI}
-h3("x axis")
+splitLayout(cellWidths = c(70, 50), h3("x axis"), circleButton(inputId = "SOWSensHelp", icon = icon("info-circle"), size = "xs") )
+
+bsTooltip(id="SOWSensHelp", title="Compare the ranking of policies for different SOW ensembles and/or different classes of robustness metrics. The heat map shows the rank correlation of policies for the selected SOW ensemble and metrics. A value of 1 means the ranking of policies is identical, whereas -1 means the ranking is reversed. For details, please see McPhail et al. 2021, Impact of Scenario Selection on Robustness.", placement = "right", options=list(container="body") )
 
 selectInput('SOW1x', label='SOW ensemble', selected='cLHS n500', choices=c('cLHS n500', 'cLHS n300'))
 
@@ -2439,14 +2505,12 @@ renderUI({
 
 ```
 
-Row {.tabset .tabset-fade}
+Row
 -----------------------------------------
 
 ### SOW ensemble correlation
 
 ```{r}
-
-library(Kendall)
 
 rankCor=reactive({
 
@@ -2529,102 +2593,213 @@ renderPlotly({
 
 ```
 
-### Mead.1000 & Powell.3490 satisficing thresholds
+Satisficing thresholds for selected policy(s) {data-navmenu="Sensitivity analysis" data-orientation=rows}
+========================================
 
-```{r, satisficing plotting sensitivity setup}
+Column {.sidebar data-width=325}
+-------------------------------------
 
-plot.df=read.table('Mead1000_Powell3490_ThreshSensitivity_results.txt')
-plot.df2=read.table('LBSV_Mead1000_Powell3490_ThreshSensitivity_results.txt')
+```{r, satisficing thresholds select policies UI}
 
-# note that this sensitivity analysis was performed with cLHS n500 ensemble, not cLHS n300
-# see Function libary.R for font style and functions to return title list and axes lists
+splitLayout(cellWidths = c(240,30),div(style="margin-bottom:30px"),
+            circleButton(inputId = "SatisSensHelp", icon = icon("info-circle"), size = "xs")) # adds padding between buttons
+
+bsTooltip(id="SatisSensHelp", title="Assess the sensitivity of satisficing fraction to the user-defined performance thresholds. Use the dropdown buttons below to select policies, performance objectives, and threshold ranges over which the satisficing fraction is calculated. For example, you can use the first dropdown button to calculate satisficing fraction for performance thresholds ranging from 0 to 20% on Mead.1000 and Powell.3490 for policy 1. You will obtain both a heatmap and decision variable plot in the left column. Then, use the second dropdown button to change the objectives, threshold ranges, and/or policies, and the results will be plotted in the right column.", placement = "right", options=list(container="body") )
+
+dropdownButton(circle=FALSE, label = "Select your own objectives (1)", width="300px",
+                h4("Select policy(s)"), 
+        
+        selectInput(inputId="SensID1", label=NULL,choices=1:463, selected=NULL, multiple=T),
+        
+        h4("Objective 1"),
+        
+        selectInput(inputId = "SensX1", label=NULL, choices=colnames(obj_all)[-c(1:2)], selected=colnames(obj_all)[3]),
+        
+        renderUI({
+          
+          req(isTruthy(input$SensX1))
+          
+          sliderInput(inputId = "SensXrange1", label=paste0(input$SensX1, " range"), min=min(obj_all[[input$SensX1]]),
+                max=max(obj_all[[input$SensX1]]), value=c(0,median(obj_all[[input$SensX1]])), width=260)
+          
+        }),
+        
+        
+        h4("Objective 2"),
+        
+        selectInput(inputId = "SensY1", label=NULL, choices=colnames(obj_all)[-c(1:2)], selected=colnames(obj_all)[3]),
+        
+        renderUI({
+          
+          req(isTruthy(input$SensY1))
+          
+          sliderInput(inputId = "SensYrange1", label=paste0(input$SensY1, " range"), min=min(obj_all[[input$SensY1]]),
+                max=max(obj_all[[input$SensY1]]), value=c(0,median(obj_all[[input$SensY1]])), width=260)
+          
+        }),
+        
+       
+        actionButton(inputId = "SensCalcs1", label="Calculate"))
+
+div(style="margin-bottom:30px") # adds padding between buttons
+
+
+dropdownButton(circle=FALSE, label = "Select your own objectives (2)", width="300px",
+                
+        h4("Select policy(s)"), 
+        
+        selectInput(inputId="SensID2", label=NULL,choices=1:463, selected=NULL, multiple=T),
+        
+        h4("Objective 2"),
+        
+        selectInput(inputId = "SensX2", label=NULL, choices=colnames(obj_all)[-c(1:2)], selected=colnames(obj_all)[3]),
+        
+        renderUI({
+          
+          req(isTruthy(input$SensX2))
+          
+          sliderInput(inputId = "SensXrange2", label=paste0(input$SensX2, " range"), min=min(obj_all[[input$SensX2]]),
+                max=max(obj_all[[input$SensX2]]), value=c(0,median(obj_all[[input$SensX2]])), width=260)
+          
+        }),
+        
+        
+        h4("Objective 2"),
+        
+        selectInput(inputId = "SensY2", label=NULL, choices=colnames(obj_all)[-c(1:2)], selected=colnames(obj_all)[3]),
+        
+        renderUI({
+          
+          req(isTruthy(input$SensY2))
+          
+          sliderInput(inputId = "SensYrange2", label=paste0(input$SensY2, " range"), min=min(obj_all[[input$SensY2]]),
+                max=max(obj_all[[input$SensY2]]), value=c(0,median(obj_all[[input$SensY2]])), width=260)
+          
+        }),
+        
+       
+        actionButton(inputId = "SensCalcs2", label="Calculate"))
+
+div(style= "margin-bottom: 20px")
+
+prettyToggle("ObjTable", label_on = "Show table of objectives", label_off = "Hide table of objectives", bigger = T)
+
+obj_table=read.csv(file="objectives summary table FOR APP.csv", colClasses = c("character", "character", "character"))
+ 
+conditionalPanel("input.ObjTable == true",
+                 
+       renderTable({obj_table}, striped=T, hover=T, bordered=T, width="300px")          
+                 
+                 )
+
 
 ```
 
-```{r, Mead and Powell heat maps}
+
+Row {data-height=750}
+-----------------------------------
+
+### Select your own objectives (1)
+
+```{r, calculate sensitivity 1}
+
+sensitivity_plots=reactiveValues()
+
+observeEvent(input$SensCalcs1, {
+  
+  showNotification("Calculating and plotting" )
+  
+  fig=satisficing_sensitivity(data=obj_all, n=40, policy_IDs = input$SensID1, obj1=input$SensX1, range1= input$SensXrange1, obj2 = input$SensY1, range2 = input$SensYrange1)
+  
+  sensitivity_plots$SYO1=fig
+  
+  showNotification("Calculation complete. See 'Select your own objectives (1)' for results." )
+  
+}, ignoreInit = T, ignoreNULL = T)
+
+```
+
+```{r, plot sensitivity plot 1}
 
 renderPlotly({
   
-  x='Powell.3490'
-  y='Mead.1000'
-  z='correlation'
-  
-  fig1=plot_ly(type='heatmap',
-               x=plot.df[[x]], y=plot.df[[y]], z=plot.df[[z]]
-  ) %>% layout(xaxis=xaxis(""), yaxis=axis(y), annotations=subplotTitle('Rank correlation'), margin=list(l=50,r=40,b=60,t=40, pad=0)) %>% colorbar(x=.45, y=1)
-  
-  
-  x='Powell.3490'
-  y='Mead.1000'
-  z='delta.mean'
-  
-  fig2=plot_ly(type='heatmap', colors="PuOr",
-               x=plot.df[[x]], y=plot.df[[y]], z=plot.df[[z]]
-  ) %>% layout(xaxis=axis(x), yaxis=xaxis(""), annotations=subplotTitle('Change in average satisficing'), margin=list(l=50,r=40,b=60,t=40, pad=0))
-  
-  lim=max(abs(range(plot.df$delta.mean)))+.05
-  
-  fig2=colorbar(fig2, limits=c(-lim, lim), x=1,y=1)
+  req(isTruthy(sensitivity_plots$SYO1))
+    sensitivity_plots$SYO1
+    
+})
 
-  x='Powell.3490'
-  y='Mead.1000'
-  z='mean'
+```
+
+
+### Select your own objectives (2)
+
+```{r, calculate sensitivity 2}
+
+sensitivity_plots=reactiveValues()
+
+observeEvent(input$SensCalcs2, {
   
-  fig3=plot_ly(type='heatmap',
-               x=plot.df[[x]], y=plot.df[[y]], z=plot.df[[z]]
-  ) %>% layout(xaxis=axis(x), yaxis=axis(y), annotations=subplotTitle('Average satisficing'), margin=list(l=50,r=40,b=60,t=40, pad=0)) %>% colorbar(x=.45, y=.45)
+  showNotification("Calculating and plotting" )
   
-  subplot(fig1,fig2,fig3, titleX = T, titleY=T, nrows = 2, margin = .05)
+  fig=satisficing_sensitivity(data=obj_all, n=40, policy_IDs = input$SensID2, obj1=input$SensX2, range1= input$SensXrange2, obj2 = input$SensY2, range2 = input$SensYrange2)
   
+  sensitivity_plots$SYO2=fig
+  
+  showNotification("Calculation complete. See 'Select your own objectives (2)' for results." )
+  
+}, ignoreInit = T, ignoreNULL = T)
+
+```
+
+```{r, plot sensitivity plot 2}
+
+renderPlotly({
+  
+  req(isTruthy(sensitivity_plots$SYO2))
+    sensitivity_plots$SYO2
+    
+})
+
+```
+
+Row
+---------------------------
+
+### Policy(s) decision variables (1)
+
+```{r, sensitivity DV plot (1)}
+
+renderPlotly({
+  
+  DV_plot(metric=prep$optimization, to_plot=input$SensID1, metric_label="ID", preferred_direction="min", y_axis2=F)
   
 })
 
 ```
 
-### LBSV & Reservoirs satisficing thresholds
+### Policy(s) decision variables (2)
 
-```{r, LBSV and Reservoir heat maps}
+```{r, sensitivity DV plot (2)}
+
 renderPlotly({
   
-  x='Res.Thresh.Dif'
-  y='LBSV'
-  z='correlation'
+  DV_plot(metric=prep$optimization, to_plot=input$SensID2, metric_label="ID", preferred_direction="min", y_axis2=F)
   
-  fig4=plot_ly(type='heatmap',
-               
-               x=plot.df2[[x]], y=plot.df2[[y]], z=plot.df2[[z]]
-               
-               
-  ) %>% layout(xaxis=xaxis(""), yaxis=axis(y), annotations=subplotTitle('Rank correlation'), margin=list(l=100,r=40,b=100,t=40, pad=0)) %>% colorbar(x=.45, y=1)
-  
-  x='Res.Thresh.Dif'
-  y='LBSV'
-  z='delta.mean'
-  
-  fig5=plot_ly(type='heatmap', colors='PuOr',
-               
-               x=plot.df2[[x]], y=plot.df2[[y]], z=plot.df2[[z]]
-               
-               
-  ) %>% layout(xaxis=xaxis(), yaxis=xaxis(""), annotations=subplotTitle('Change in average satisficing'), margin=list(l=50,r=40,b=100,t=40, pad=0))
-  
-  lim=max(abs(range(plot.df2$delta.mean)))+.05
-  
-  fig5=colorbar(fig5, limits=c(-lim, lim),x=1, y=1)
-  
-  x='Res.Thresh.Dif'
-  y='LBSV'
-  z='mean'
-  
-  fig6=plot_ly(type='heatmap',
-               
-               x=plot.df2[[x]], y=plot.df2[[y]], z=plot.df2[[z]]
-               
-               
-  ) %>% layout(xaxis=xaxis(), yaxis=axis(y), annotations=subplotTitle('Average satisficing'), margin=list(l=50,r=40,b=60,t=40, pad=0))%>% colorbar(x=.45, y=.45)
-  
-  
-  subplot(fig4,fig5,fig6, titleX = T, titleY=T, nrows=2, margin = .05) 
 })
 
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

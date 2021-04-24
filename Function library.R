@@ -8,6 +8,7 @@ library(knitr)
 library(flexdashboard)
 library(dplyr)
 library(plotly) # one method for par coords.
+library(ggplot2)
 library(shiny)
 library(shinyWidgets)
 library(stringr)
@@ -17,15 +18,16 @@ library(DT) # for sortable data table
 library(openxlsx)
 library(prospectr) # for Kennard Stone sampling
 library(shinyBS) # for tooltips
-library(schoolmath) # is.even
-
+library(Kendall) # rank correlation
 
 ####################################### wrapper to plot_ly parallel coordinates #################################
 #################################################################################################################
 
 
 par_coords=function(data, max_cols=NULL, n_var, color_var, title='User selected metrics', labels=colnames(data), source=NULL, policy_ID=NULL,
-                    color_scale=input$ColorScale, reverse_scale=input$ReverseTF, colorbarTitle="", maintainAxesRange=input$MaintainAxes, axes_data=data){
+                    color_scale=input$ColorScale, reverse_scale=input$ReverseTF, colorbarTitle="", maintainAxesRange=input$MaintainAxes, axes_data=data, show_ID_front=input$ShowID_Front, 
+                    labelangle=input$labelangle, titlesize=input$titlesize, labelsize=input$labelsize, img_height=input$height, img_width=input$width, img_scale=input$scale,
+                    img_format=input$format){
   
   # identify maximization axes
   
@@ -62,6 +64,10 @@ par_coords=function(data, max_cols=NULL, n_var, color_var, title='User selected 
       dimensions[[i]][['constraintrange']]=policy_ID
     }
     
+    if (colnames(data)[i] %in% c("ID", "front")){
+      dimensions[[i]][["visible"]]=show_ID_front
+    }
+    
     
   }
   
@@ -70,13 +76,22 @@ par_coords=function(data, max_cols=NULL, n_var, color_var, title='User selected 
   
   p <-data %>% plot_ly(type = 'parcoords', tickfont=list(size=13),
                        line = list(color =data[[color_var]], colorbar=list(title=list(text=colorbarTitle, side='right'), thickness=20, x=1.00, xpad=10),
-                                   colorscale = color_scale, reversescale=reverse_scale, showscale=TRUE),
-                       dimensions = dimensions, source=source
+                                   colorscale = color_scale, reversescale=reverse_scale, showscale=TRUE), labelangle=labelangle, labelside="top",
+                       dimensions = dimensions, source=source, labelfont=list(size=labelsize)
                        
   ) # end plot_ly()
   
-  # add title
-  p=p %>% layout(margin=list(l=40,r=10,b=20,t=0, pad=0), title=title)
+  # add title and set margins
+  p=p %>% layout(margin=list(l=60,r=20,b=25,t=0, pad=0), title=list(text=title, font=list(size=titlesize)))
+  
+  # see these sources for wayt to change the download image behavior. You can change height, width, and fyle type to obtain MUCH IMPROVED quality
+  # https://plotly.com/python/configuration-options/
+  # https://www.rdocumentation.org/packages/plotly/versions/4.9.3/topics/config
+  # https://github.com/plotly/plotly.js/blob/master/src/plot_api/plot_config.js
+  
+  p=config(p, toImageButtonOptions=list(format=img_format, height=img_height, width=img_width, scale=img_scale))
+
+  
   
   return(p)
   
@@ -97,7 +112,8 @@ addSmallLegend <- function(myPlot=bar_plot, pointSize = 0.25, textSize = 8, spac
 }
 
 DV_plot=function(long.data=long_data, wide.data=wide_data, metric= robustness_metrics$satisficing,
-                 to_plot=robustness_metrics$satisficing$policy, metric_label='satisficing', preferred_direction='max'){
+                 to_plot=robustness_metrics$satisficing$policy, metric_label='satisficing', preferred_direction='max', y_axis2=T,
+                 labelsize=delayFontSlider()){
   
   # filter for chosen policies
   filter.long=dplyr::filter(long.data, policy %in% to_plot)
@@ -115,7 +131,7 @@ DV_plot=function(long.data=long_data, wide.data=wide_data, metric= robustness_me
   
   
   ############################# plotting ################################
-  text_size=2.7
+  text_size=labelsize
   
   n_policies=nrow(filter.wide)
   
@@ -139,14 +155,24 @@ DV_plot=function(long.data=long_data, wide.data=wide_data, metric= robustness_me
     orientation = "v", title=list(text=" Tier "))
   )
   
-  int_plot_2y=int_plot %>%
-    add_lines(data=filter.metric, x=~sort(filter.metric$rank), y=~sort(filter.metric[[metric_label]], decreasing = decreasing), yaxis='y2',
-              inherit=FALSE, showlegend=FALSE, line=list(color='purple', width=2, dash='dash')) %>%
-    layout(yaxis2 = list(overlaying = "y", side = "right",
-                         tickfont = list(color = 'purple', size=10), color = 'purple',
-                         title = metric_label),
-           legend = list(x = 1.05, y = 0.95), xaxis=list(range=c(0, min((n_policies+1),20))), yaxis=list(range=c(885,1110))
-           )
+  if (y_axis2==T){ # only add second y axis if y_axis2==T
+    
+    int_plot_2y=int_plot %>%
+      add_lines(data=filter.metric, x=~sort(filter.metric$rank), y=~sort(filter.metric[[metric_label]], decreasing = decreasing), yaxis='y2',
+                inherit=FALSE, showlegend=FALSE, line=list(color='purple', width=2, dash='dash')) %>%
+      layout(yaxis2 = list(overlaying = "y", side = "right",
+                           tickfont = list(color = 'purple', size=10), color = 'purple',
+                           title = metric_label),
+             legend = list(x = 1.05, y = 0.95), xaxis=list(range=c(0, min((n_policies+1),20))), yaxis=list(range=c(885,1110))
+      )
+    
+  } else { # do not add second axis. Used on sensitivity analysis page
+    
+    int_plot_2y=int_plot %>%
+      layout(legend = list(x = 1.05, y = 0.95), xaxis=list(range=c(0, min((n_policies+1),20)), title=""), yaxis=list(range=c(885,1110)))
+    
+  }
+
   
   int_plot_2y$x$layout$xaxis$autorange = FALSE # need to tell plotly to NOT change the axis range to fit all data
   int_plot_2y$x$layout$yaxis$autorange = FALSE
@@ -206,11 +232,13 @@ manual_filters=function(ID_key, unique_thresh_ID, dataframe, page="baseline"){
   function_df$r=dataframe
   
   rows=list()
+  log_vec=vector()
+  
   if (!isTruthy(input[[ID_key]]) ){ # if user DID NOT hand selected policies to view
     
     for (i in 1:3){ # loop through filters
       
-      log_vec=vector()
+      
       
       if (input[[paste0('Var',unique_thresh_ID,i)]] == 'None' ){
         rows[[i]]=1:nrow(function_df$r)
@@ -560,7 +588,7 @@ HurwiczOP=function(data=obj, objectives=c('LB.Shortage.Volume', 'Mead.1000', 'Po
 
 
 
-####################### functions and font definitions for sensitivity heatmaps in options page ####################
+####################### functions and font definitions for sensitivity heatmaps in Sensitivity analysis page ####################
 ####################################################################################################################
 
 ## axis for plotly heatmap. you can call this for yaxis if you want a blank label
@@ -598,4 +626,66 @@ subplotTitle=function(title=""){
   )
   return(a)
 } 
+
+
+################## satisficing sensitivity calcs ###############################
+#################################################################################
+
+axis4sensitivity=function(name, units){
+  return(list(title=paste0(name, ' < [] ', units)))
+}
+
+satisficing_sensitivity=function(data=obj_all, n=20, policy_IDs=1:463, obj1, range1,  obj2, range2, baseline_obj1, baseline_obj1_threshold, baseline_obj2, baseline_obj2_threshold ){
+  
+  # evaluation points
+  vec1=seq(range1[1], range1[2], length.out = n)
+  vec2=seq(range2[1], range2[2], length.out = n)
+  eval.points=expand.grid(vec1, vec2)
+  colnames(eval.points)=c(obj1, obj2)
+  
+  ######## compute satisficing for every combo of thresholds
+  
+  satisficing_list=list()
+  
+  # before calculating, subset data according to policy_IDs
+  data=dplyr::filter(data, policy %in% policy_IDs)
+  
+  for (i in 1:nrow(eval.points)){
+    satisficing_list[[i]]=satisficing(data=data, objectives = c(obj1, obj2), thresholds = unlist(eval.points[i,]), fail_if_inequality = c('greater', 'greater'))
+  }
+  
+  # compute baseline satisficing
+  
+  # baseline_satisficing=satisficing(objectives=c(baseline_obj1, baseline_obj2), thresholds = c(baseline_obj1_threshold, baseline_obj2_threshold), fail_if_inequality = c('greater', 'greater'))
+  # baseline_satisficing$rank=rank(-1*baseline_satisficing$satisficing)
+  
+  sensitivity.df=data.frame(matrix(NA, nrow=nrow(eval.points), ncol=1)) # need to change ncol = 1 to ncol = 2 if I implement baseline comparisons for rank correlation
+  colnames(sensitivity.df)= c('mean') #c('correlation', 'mean')
+  
+  for (i in 1:nrow(sensitivity.df)){
+    rank=rank(-1*satisficing_list[[i]]$satisficing)
+    
+    # sensitivity.df$correlation[i]=Kendall(x=baseline_satisficing$rank, rank)$tau
+    sensitivity.df$mean[i]=mean(satisficing_list[[i]]$satisficing)
+    
+  }
+  
+  # sensitivity.df$delta.mean=sensitivity.df$mean-mean(baseline_satisficing$satisficing)
+  
+  plot.df=data.frame(eval.points, sensitivity.df)
+  
+  
+  ############### plotting #######################
+  
+  units=data.frame(LB.Shortage.Volume="KAF", LB.Shortage.Volume.Policy="KAF", Lee.Ferry.Deficit= "%", Mead.1000="%",
+                   Powell.3490="%", LB.Max.Cons.Shortage.Duration="Yr", LB.Shortage.Frequency="%", Max.Annual.LB.Shortage="KAF", Powell.WY.Release="MAF")
+  
+ fig=plot_ly(type="heatmap", x=plot.df[[obj1]], y=plot.df[[obj2]], z=plot.df[["mean"]] )
+  fig = layout(fig, xaxis=axis4sensitivity(obj1, units[[obj1]]), yaxis=axis4sensitivity(obj2, units[[obj2]]), title=paste0(obj1, " & ", obj2, ": satisficing fraction"), margin=list(l=40,r=40,b=40,t=40, pad=0))
+  
+  return(fig)
+  
+}
+
+
 
