@@ -765,6 +765,20 @@ renderUI({
   
 })
 
+# Maximin
+renderUI({
+  req(name$n=="maximin")
+  sliderInput("maximinPercentile", label="Maximin percentile", min=0, max=100, value=100, step=5, width=170, ticks = F)
+})
+
+renderUI({
+  req(name$n=="maximin")
+  req(maximindf$calcPerc != input$maximinPercentile) # only give option to calculate if weight has changed
+  
+  actionButton("maximinCalc", label= "update percentile", width=190, class="btn-warning")
+  
+})
+
 # satisficing
 
 renderUI({
@@ -1550,13 +1564,9 @@ observeEvent(input$HurwicCalc, {
   
 }, ignoreNULL = T, ignoreInit = T)
 
-
-
 ```
 
-
-
-```{r}
+```{r, Hurwicz PC}
 
 labelsHurwicz.OP=colnames(metrics_4app_n500$Hurwicz.OP)
 
@@ -1632,6 +1642,44 @@ output$pcmean.variance=renderPlotly({
 ```
 
 ### Maximin
+
+```{r, Maximin calcs, include=FALSE}
+
+maximindf=reactiveValues(df=metrics.list_n500$maximin, calcPerc=100, trigger=0) # establish reactive object to store maximin dataframe
+
+observeEvent(input$maximinCalc, {
+  
+  showNotification('Calculating', type='message', duration=7)
+  
+  maximindf$df=NULL # reset Hurwicdf
+  
+  # change the ensemble based on user input
+  if (input$SOWensemble=="cLHS n300"){
+    obj=dplyr::filter(obj, TraceNumber %in% SOW_id) # filter CRSS objectives output to the 300 SOW
+  } else {
+    obj=obj_all
+  }
+  
+  df=maximin(data=obj, objectives=colnames(obj)[-c(1,2,4)], percentile = rep(input$maximinPercentile, 8))
+  
+  maximindf$df=df # update 
+
+  maximindf$calcPerc=input$maximinPercentile # update percentile of current calculations
+
+  metrics.list$l$maximin=df # update both metrics list. prep$maximin updates because of dependency
+  metrics_4app$l$maximin=df
+
+  maximindf$trigger=1
+  
+  showNotification('Maximin percentile updated', type='message', duration=7)
+  
+}, ignoreNULL = T, ignoreInit = T)
+
+
+
+```
+
+
 ```{r, par coords maximin}
 
 labelsmaximim=colnames(metrics_4app_n500$maximin)
@@ -1656,8 +1704,13 @@ output$pcmaximin=renderPlotly({
     data=data.frame(Explore_all$df,global.filter=in_global_filter$y[KS$index])
   }
   
-  p=par_coords(data=data, n_var=10, 
-             color_var = input$colorExplore, title='maximin (worst case SOW)', labels=labelsmaximim, source='maximin', policy_ID = Explore_all$ID_constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$axes, show_ID_front=input$ShowID_Front, labelangle=input$labelangle, titlesize=input$titlesize)
+  nvar=if("front" %in% colnames(data)) {10} else {9} # 10 axes if front is included, 9 otherwise
+  percentile=isolate(input$maximinPercentile)
+  title=paste0("maximin: ", percentile, "th percentile SOW")
+  
+  
+  p=par_coords(data=data, n_var=nvar, 
+             color_var = input$colorExplore, title=title, labels=labelsmaximim, source='maximin', policy_ID = Explore_all$ID_constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$axes, show_ID_front=input$ShowID_Front, labelangle=input$labelangle, titlesize=input$titlesize)
   p=event_register(p,"plotly_restyle")
   p
   

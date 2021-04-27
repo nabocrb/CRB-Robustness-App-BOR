@@ -586,6 +586,49 @@ HurwiczOP=function(data=obj, objectives=c('LB.Shortage.Volume', 'Mead.1000', 'Po
   
 } # end function
 
+############################## maximin ###################################
+##########################################################################
+
+maximin=function(data=obj, objectives=c('LB.Shortage.Volume', 'Mead.1000', 'Powell.3490'),
+                 percentile=rep(100, length(objectives)), 
+                 policy_ID_column=2, SOW_column=1){
+  
+  ####### prepare data frame to store results
+  
+  ncol=length(objectives)+1 #plus one for policy ID
+  nrow=length(unique(data[, policy_ID_column])) # one row per policy
+  
+  metric.df=matrix(NA, nrow=nrow, ncol=ncol)
+  metric.df=data.frame(metric.df)
+  colnames(metric.df)=c('ID', objectives)
+  metric.df[,1]=unique(data[, policy_ID_column])
+  
+  policy_iter=unique(data[, policy_ID_column]) # id of policies to loop through
+  
+  
+  for (r in 1:length(policy_iter)){ ########## loop through policies
+    
+    filter.policy=data[which(data[,policy_ID_column]==policy_iter[r]),]
+    
+    ##################### Compute maximin #################################
+    
+    
+    calcs=matrix(ncol=length(objectives), nrow=nrow(filter.policy))
+    
+    for (cr in 1:length(objectives)){
+      
+      
+      metric.df[r,(cr+1)]=quantile( filter.policy[,which(colnames(filter.policy)==objectives[cr])], percentile[cr]/100) #return the desired quantile. For case of minimization and maximin, want 100%
+      
+    } #  criteria loop  
+    
+    
+    
+  } # end policy loop
+  
+  return(metric.df)
+  
+} # end function
 
 
 ####################### functions and font definitions for sensitivity heatmaps in Sensitivity analysis page ####################
