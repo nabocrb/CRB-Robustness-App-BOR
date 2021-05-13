@@ -1,0 +1,12 @@
+name: CRB-Robustness-App-Shiny-Contest
+title: CRB-Robustness-App-Shiny-Contest
+username:
+account: nabocrb
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 4126550
+bundleId: 4594633
+url: https://nabocrb.shinyapps.io/CRB-Robustness-App-Shiny-Contest/
+when: 1620920605.67455
+asMultiple: FALSE
+asStatic: FALSE

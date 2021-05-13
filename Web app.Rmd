@@ -763,6 +763,8 @@ Column{.sidebar data-width=225}
 ```{r, Exploration UI}
 
 df_names=names(metrics_4app_n500)
+# remove Hurwicz.OP and mean.variance. No longer of interest in this research.
+df_names=df_names[-which(df_names %in% c("Hurwicz.OP", "mean.variance"))]
 name=reactiveValues(n='satisficing')
 observeEvent(input$active_tab,{
     name$n=df_names[input$active_tab+1]
@@ -1119,13 +1121,13 @@ observe({
   } else if (input$active_tab==3){
     Explore_all$df=prep$Laplace
     Explore_all$axes=metrics_4app$l$Laplaces.PIR
-  } else if (input$active_tab==4){
-    Explore_all$df=prep$Hurwicz
+  } else if (input$active_tab==999){
+    Explore_all$df=prep$Hurwicz # Currently removed from app. Metric no longer of interest
     Explore_all$axes=metrics_4app$l$Hurwicz.OP
-  } else if (input$active_tab==5){
-    Explore_all$df=prep$mean_var
-    Explore_all$axes=metrics_4app$l$mean.variance
-  } else if (input$active_tab==6) {
+  } else if (input$active_tab==999){
+    Explore_all$df=prep$mean_var # Currently removed from app. Metric no longer of interest
+    Explore_all$axes=metrics_4app$l$mean.variance 
+  } else if (input$active_tab==4) {
     Explore_all$df=prep$maximin
     Explore_all$axes=metrics_4app$l$maximin
   } else {
@@ -1548,28 +1550,32 @@ output$pcLaplaces.PIR=renderPlotly({
 
 ```
 
-### Hurwicz optimism-pessimism
+
 
 ```{r, HurwicOP calcs, include=FALSE}
+
+# Metric no longer included, no longer of interest in our research. 
+
+### Hurwicz optimism-pessimism
 
 Hurwicdf=reactiveValues(df=metrics.list_n500$Hurwicz.OP, calcWeight=0.5, trigger=0) # establish reactive object to store Hurwic dataframe
 
 observeEvent(input$HurwicCalc, {
-  
+
   showNotification('Calculating', type='message', duration=7)
-  
+
   Hurwicdf$df=NULL # reset Hurwicdf
-  
+
   # change the ensemble based on user input
   if (input$SOWensemble=="cLHS n300"){
     obj=dplyr::filter(obj, TraceNumber %in% SOW_id) # filter CRSS objectives output to the 300 SOW
   } else {
     obj=obj_all
   }
-  
+
   df=HurwiczOP(data=obj, objectives=colnames(obj)[-c(1,2,4)], best_case_weight = input$HurwicWeight)
-  
-  Hurwicdf$df=df # update 
+
+  Hurwicdf$df=df # update
 
   Hurwicdf$calcWeight=input$HurwicWeight # update weight of current calculations
 
@@ -1577,84 +1583,88 @@ observeEvent(input$HurwicCalc, {
   metrics_4app$l$Hurwicz.OP=df
 
   Hurwicdf$trigger=1
-  
+
   showNotification('Hurwic OP weights updated', type='message', duration=7)
-  
+
 }, ignoreNULL = T, ignoreInit = T)
 
 ```
 
 ```{r, Hurwicz PC}
 
-labelsHurwicz.OP=colnames(metrics_4app_n500$Hurwicz.OP)
-
-
-plotlyOutput("pcHurwicz.OP")
-
-
-output$pcHurwicz.OP=renderPlotly({
-  
-  req(isTruthy(Explore_all$df))
-  req(isTruthy(input$colorExplore))
-
-  weight=isolate(input$HurwicWeight) # I want title to reflect the weight without renderPlotly taking a dependency on it
-  if (is.null(weight)){
-    weight=0.5 # so the title is loaded with correct values upon app initialization
-  }
-  isTruthy(input$localresetExplore) # adding this statement causes interactive filters to reset when local reset button applied
-
-    if (input$KeepPoliciesTF==TRUE){
-    data=data.frame(Explore_all$df,global.filter=in_global_filter$y[KS$index])
-  } else if (input$KeepPoliciesTF==FALSE){
-    data=filter.Explore()
-  } else {
-    data=data.frame(Explore_all$df,global.filter=in_global_filter$y[KS$index])
-  }
-  
-  
-  nvar=if("front" %in% colnames(data)) {10} else {9} # 10 axes if front is included, 9 otherwise
-  
-  p=par_coords(data=data, n_var=nvar, 
-             color_var = input$colorExplore, title=paste0('Hurwicz Optimism-Pessimism: best-case weight = ', weight, " , worst-case weight = ", (1-weight) ), labels=labelsHurwicz.OP, source='Hurwicz.OP', policy_ID = Explore_all$ID_constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$axes, show_ID_front=input$ShowID_Front, labelangle=input$labelangle, titlesize=input$titlesize)
-  p=event_register(p,"plotly_restyle")
-  p
-  
-})
+# labelsHurwicz.OP=colnames(metrics_4app_n500$Hurwicz.OP)
+# 
+# 
+# plotlyOutput("pcHurwicz.OP")
+# 
+# 
+# output$pcHurwicz.OP=renderPlotly({
+#   
+#   req(isTruthy(Explore_all$df))
+#   req(isTruthy(input$colorExplore))
+# 
+#   weight=isolate(input$HurwicWeight) # I want title to reflect the weight without renderPlotly taking a dependency on it
+#   if (is.null(weight)){
+#     weight=0.5 # so the title is loaded with correct values upon app initialization
+#   }
+#   isTruthy(input$localresetExplore) # adding this statement causes interactive filters to reset when local reset button applied
+# 
+#     if (input$KeepPoliciesTF==TRUE){
+#     data=data.frame(Explore_all$df,global.filter=in_global_filter$y[KS$index])
+#   } else if (input$KeepPoliciesTF==FALSE){
+#     data=filter.Explore()
+#   } else {
+#     data=data.frame(Explore_all$df,global.filter=in_global_filter$y[KS$index])
+#   }
+#   
+#   
+#   nvar=if("front" %in% colnames(data)) {10} else {9} # 10 axes if front is included, 9 otherwise
+#   
+#   p=par_coords(data=data, n_var=nvar, 
+#              color_var = input$colorExplore, title=paste0('Hurwicz Optimism-Pessimism: best-case weight = ', weight, " , worst-case weight = ", (1-weight) ), labels=labelsHurwicz.OP, source='Hurwicz.OP', policy_ID = Explore_all$ID_constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$axes, show_ID_front=input$ShowID_Front, labelangle=input$labelangle, titlesize=input$titlesize)
+#   p=event_register(p,"plotly_restyle")
+#   p
+#   
+# })
 
 
 ```
 
-### Mean-variance
+
 
 ```{r, par coords mean variance}
 
-labelsmean.variance=colnames(metrics_4app_n500$mean.variance)
+### Mean-variance
 
-plotlyOutput("pcmean.variance")
+# metric no longer of interest
 
-
-output$pcmean.variance=renderPlotly({
-  
-  req(isTruthy(Explore_all$df))
-  req(isTruthy(input$colorExplore))
-  
-  isTruthy(input$localresetExplore) # adding this statement causes interactive filters to reset,
-
-  
-    if (input$KeepPoliciesTF==TRUE){
-    data=data.frame(Explore_all$df,global.filter=in_global_filter$y[KS$index])
-  } else if (input$KeepPoliciesTF==FALSE){
-    data=filter.Explore()
-  } else {
-    data=data.frame(Explore_all$df,global.filter=in_global_filter$y[KS$index])
-  }
-  
-  p=par_coords(data=data, n_var=10, 
-             color_var = input$colorExplore, title='mean-variance', labels=labelsmean.variance, source='mean.variance', policy_ID = Explore_all$ID_constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$axes, show_ID_front=input$ShowID_Front, labelangle=input$labelangle, titlesize=input$titlesize)
-  p=event_register(p,"plotly_restyle")
-  p
-  
-})
+# labelsmean.variance=colnames(metrics_4app_n500$mean.variance)
+# 
+# plotlyOutput("pcmean.variance")
+# 
+# 
+# output$pcmean.variance=renderPlotly({
+#   
+#   req(isTruthy(Explore_all$df))
+#   req(isTruthy(input$colorExplore))
+#   
+#   isTruthy(input$localresetExplore) # adding this statement causes interactive filters to reset,
+# 
+#   
+#     if (input$KeepPoliciesTF==TRUE){
+#     data=data.frame(Explore_all$df,global.filter=in_global_filter$y[KS$index])
+#   } else if (input$KeepPoliciesTF==FALSE){
+#     data=filter.Explore()
+#   } else {
+#     data=data.frame(Explore_all$df,global.filter=in_global_filter$y[KS$index])
+#   }
+#   
+#   p=par_coords(data=data, n_var=10, 
+#              color_var = input$colorExplore, title='mean-variance', labels=labelsmean.variance, source='mean.variance', policy_ID = Explore_all$ID_constraints, colorbarTitle = input$colorExplore, axes_data=Explore_all$axes, show_ID_front=input$ShowID_Front, labelangle=input$labelangle, titlesize=input$titlesize)
+#   p=event_register(p,"plotly_restyle")
+#   p
+#   
+# })
 
 
 ```
