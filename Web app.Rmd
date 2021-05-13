@@ -415,6 +415,24 @@ tags$iframe(style="height:1000px; width:100%; scrolling=yes",
 src="www/Robustness pdf for app.pdf")
 ```
 
+### example calculations
+
+```{r}
+
+googleSheet_embed_link <-"https://docs.google.com/spreadsheets/d/1qWXsX7_P73OalFdXVV3uHSZXQFoWD_Ccv98cOVqh-PY/edit?usp=sharing"
+
+renderUI({
+    tags$iframe(id = "googleSheet",
+            src = googleSheet_embed_link,
+            width = 1948,
+            height = 850,
+            frameborder = 0,
+            marginheight = 0)
+ })
+
+```
+
+
 Optimization objectives {data-orientation=rows}
 =====================================  
 
@@ -1705,7 +1723,7 @@ output$pcmaximin=renderPlotly({
   }
   
   nvar=if("front" %in% colnames(data)) {10} else {9} # 10 axes if front is included, 9 otherwise
-  percentile=isolate(input$maximinPercentile)
+  percentile=isolate(maximindf$calcPerc)
   title=paste0("maximin: ", percentile, "th percentile SOW")
   
   
